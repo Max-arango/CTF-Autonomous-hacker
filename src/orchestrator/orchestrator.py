@@ -1,8 +1,9 @@
-"""Orchestrator - Central coordination engine"""
+"""Orchestrator - Central coordination engine with state machine and security integration"""
 import asyncio
 import uuid
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Set
+from enum import Enum
 from pathlib import Path
 
 from .models import Challenge, ChallengeClassification, AttackSurface, SolveResult, ChallengeCategory, ChallengeType
@@ -16,11 +17,39 @@ from ..artifacts import ArtifactManager, get_artifact_manager
 from ..challenges import ChallengeManager, get_challenge_manager
 from ..config.settings import get_settings
 from ..config.loader import get_config_manager
+from ..triage import DeterministicTriage, get_deterministic_triage
+from ..security import (
+    get_policy_engine,
+    get_scope_engine,
+    get_authorization_context,
+    get_capability_registry,
+    ChallengeScope,
+    NetworkRule,
+    FilesystemRule,
+    NetworkPolicy,
+)
 from ..observability import get_logger, log_agent_event, log_audit
 
 
+class OrchestratorState(str, Enum):
+    """Orchestrator state machine states."""
+    INTAKE = "intake"
+    TRIAGE = "triage"
+    DISCOVERY = "discovery"
+    HYPOTHESIS = "hypothesis"
+    INVESTIGATION = "investigation"
+    EXPLOITATION = "exploitation"
+    VALIDATION = "validation"
+    FLAG_VERIFICATION = "flag_verification"
+    REPORT = "report"
+    COMPLETE = "complete"
+    FAILED = "failed"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+
+
 class Orchestrator:
-    """Central orchestration engine for CTF challenge solving."""
+    """Central orchestration engine for CTF challenge solving with state machine."""
 
     def __init__(self):
         self.settings = get_settings()
@@ -35,11 +64,22 @@ class Orchestrator:
         self.challenge_manager: Optional[ChallengeManager] = None
         self.llm_provider = None
         self.delegation_manager: Optional[DelegationManager] = None
+        self.triage: Optional[DeterministicTriage] = None
+        self.policy_engine = get_policy_engine()
+        self.scope_engine = get_scope_engine()
+        self.auth_manager = get_authorization_context()
+        self.capability_registry = get_capability_registry()
+
+        # State machine
+        self._state = OrchestratorState.INTAKE
+        self._current_challenge_id: Optional[str] = None
+        self._state_data: Dict[str, Any] = {}
 
         # State
         self._active_challenges: Dict[str, Challenge] = {}
-        self._challenge_agents: Dict[str, List[str]] = {}  # challenge_id -> agent_ids
+        self._challenge_agents: Dict[str, List[str]] = {}
         self._solve_results: Dict[str, SolveResult] = {}
+        self._attack_graph: Dict[str, Any] = {}  # challenge_id -> graph
 
     async def initialize(self):
         """Initialize orchestrator and components."""
@@ -50,12 +90,26 @@ class Orchestrator:
         self.challenge_manager = await get_challenge_manager()
         self.llm_provider = await get_llm_provider()
         self.delegation_manager = DelegationManager(self.runtime)
+        self.triage = get_deterministic_triage()
 
         # Setup callbacks
         self.runtime.on_agent_start = self._on_agent_start
         self.runtime.on_agent_complete = self._on_agent_complete
         self.runtime.on_agent_error = self._on_agent_error
         self.runtime.on_sub_agent_spawn = self._on_sub_agent_spawn
+
+    def _transition_state(self, new_state: OrchestratorState):
+        """Transition orchestrator state."""
+        old_state = self._state
+        self._state = new_state
+        self._state_data["last_transition"] = datetime.utcnow().isoformat()
+        self._state_data["previous_state"] = old_state.value
+        
+        logger = get_logger("orchestrator")
+        logger.info("state_transition", 
+            orchestrator_state=new_state.value,
+            previous_state=old_state.value,
+            challenge_id=self._current_challenge_id)
 
     async def add_challenge(
         self,
@@ -68,7 +122,9 @@ class Orchestrator:
         flag_format: str = "flag{.*}",
         challenge_type: ChallengeType = ChallengeType.JEOPARDY,
     ) -> Challenge:
-        """Add a new challenge."""
+        """Add a new challenge with scope initialization."""
+        self._transition_state(OrchestratorState.INTAKE)
+        
         challenge = Challenge(
             name=name,
             description=description,
@@ -80,14 +136,14 @@ class Orchestrator:
             challenge_type=challenge_type,
         )
 
-        # Classify challenge
-        classification = await self.classify_challenge(challenge)
-        challenge.category = classification.categories
-
         # Store challenge
         self._active_challenges[challenge.id] = challenge
         await self.challenge_manager.store(challenge)
 
+        # Initialize scope
+        await self._initialize_scope(challenge)
+
+        # Log audit
         await log_audit(
             agent_id="orchestrator",
             action="challenge_added",
@@ -99,8 +155,77 @@ class Orchestrator:
 
         return challenge
 
+    async def _initialize_scope(self, challenge: Challenge):
+        """Initialize challenge scope based on type and target info."""
+        target_ip = challenge.target_info.get("ip") or challenge.target_info.get("host")
+        
+        if challenge.challenge_type == ChallengeType.JEOPARDY:
+            scope = ChallengeScope.create_for_jeopardy(challenge.id, target_ip)
+        elif challenge.challenge_type == ChallengeType.MACHINES:
+            target_cidr = challenge.target_info.get("cidr", "10.10.10.0/24")
+            scope = ChallengeScope.create_for_machines(challenge.id, target_cidr)
+        elif challenge.challenge_type == ChallengeType.ATTACK_DEFENSE:
+            team_network = challenge.target_info.get("team_network", "10.10.10.0/24")
+            scope = ChallengeScope.create_for_attack_defense(challenge.id, team_network)
+        else:
+            scope = ChallengeScope.create_for_jeopardy(challenge.id, target_ip)
+        
+        # Add agent-specific workspace paths
+        for agent_role in ["web", "crypto", "pwn", "reverse", "forensics", "osint", "stego", "mobile", "malware", "cloud", "network", "supply_chain", "ad", "web3", "ai_security", "sidechannel", "firmware", "social", "programming", "meta", "orchestrator"]:
+            scope.allowed_paths.append(FilesystemRule(
+                path=f"/workspace/{challenge.id}/{agent_role}",
+                read=True,
+                write=True,
+                description=f"Workspace for {agent_role} agent"
+            ))
+        
+        # Register scope
+        self.scope_engine.register_scope(scope)
+        
+        # Add allowed tools per agent role
+        self._configure_scope_tools(scope, challenge)
+
+    def _configure_scope_tools(self, scope: ChallengeScope, challenge: Challenge):
+        """Configure allowed tools based on challenge categories."""
+        tool_map = {
+            ChallengeCategory.WEB: ["nmap", "curl", "ffuf", "httpx", "nuclei", "sqlmap", "knock"],
+            ChallengeCategory.CRYPTO: ["hashcat", "john", "openssl", "python"],
+            ChallengeCategory.PWN: ["gdb", "pwntools", "checksec", "ROPgadget", "ropper", "python"],
+            ChallengeCategory.REVERSE: ["ghidra", "radare2", "angr", "gdb", "python"],
+            ChallengeCategory.FORENSICS: ["volatility", "binwalk", "exiftool", "yara", "foremost", "python"],
+            ChallengeCategory.OSINT: ["nmap", "curl", "httpx", "python"],
+            ChallengeCategory.STEGO: ["steghide", "zsteg", "binwalk", "exiftool", "python"],
+            ChallengeCategory.MOBILE: ["apktool", "jadx", "frida", "python"],
+            ChallengeCategory.MALWARE: ["yara", "binwalk", "ghidra", "radare2", "volatility", "python"],
+            ChallengeCategory.CLOUD: ["awscli", "kubectl", "trivy", "python"],
+            ChallengeCategory.NETWORK: ["nmap", "rustscan", "masscan", "tshark", "python"],
+            ChallengeCategory.AD: ["impacket", "kerbrute", "netexec", "python"],
+            ChallengeCategory.WEB3: ["foundry", "slither", "mythril", "python"],
+            ChallengeCategory.AI_SECURITY: ["python"],
+            ChallengeCategory.SIDECHANNEL: ["python"],
+            ChallengeCategory.FIRMWARE: ["binwalk", "ghidra", "radare2", "python"],
+            ChallengeCategory.SOCIAL: ["python"],
+            ChallengeCategory.PROGRAMMING: ["python", "bash", "gcc", "rustc"],
+            ChallengeCategory.META: ["python", "curl"],
+        }
+        
+        allowed_tools = set()
+        for cat in challenge.category:
+            allowed_tools.update(tool_map.get(cat, []))
+        
+        # Always allow basic tools
+        allowed_tools.update(["python", "bash", "curl", "git", "jq", "file", "strings"])
+        
+        scope.allowed_tools = list(allowed_tools)
+
     async def classify_challenge(self, challenge: Challenge) -> ChallengeClassification:
-        """Classify a challenge using LLM."""
+        """Classify a challenge using deterministic + LLM triage."""
+        self._transition_state(OrchestratorState.TRIAGE)
+        
+        # Run deterministic triage first
+        deterministic_result = await self.triage.classify(challenge)
+        
+        # Combine with LLM classification
         system_prompt = """You are a CTF challenge classifier. Analyze the challenge description and files to determine categories.
 
 Categories: web, crypto, pwn, reverse, forensics, osint, stego, mobile, malware, cloud, network, supply_chain, ad, web3, ai_security, sidechannel, firmware, social, programming, meta
@@ -111,7 +236,9 @@ Return JSON with: categories (list), confidence (0-1), reasoning (string), sugge
 Description: {challenge.description}
 Files: {challenge.files}
 Target Info: {challenge.target_info}
-Type: {challenge.challenge_type.value}"""
+Type: {challenge.challenge_type.value}
+
+Deterministic analysis suggests: {deterministic_result.categories}"""
 
         messages = [
             LLMMessage(role=MessageRole.SYSTEM, content=system_prompt),
@@ -136,110 +263,219 @@ Type: {challenge.challenge_type.value}"""
                 attack_surface=attack_surface,
             )
         except Exception:
-            # Fallback classification
+            # Fallback to deterministic
             return ChallengeClassification(
                 challenge_id=challenge.id,
-                categories=[ChallengeCategory.UNKNOWN],
-                confidence=0.1,
-                reasoning="Classification failed",
-                suggested_agents=["programming"],
-                attack_surface=AttackSurface(),
+                categories=deterministic_result.categories,
+                confidence=deterministic_result.confidence,
+                reasoning=f"LLM classification failed, using deterministic: {deterministic_result.reasoning}",
+                suggested_agents=deterministic_result.suggested_agents,
+                attack_surface=deterministic_result.attack_surface,
             )
 
     async def solve_challenge(self, challenge_id: str) -> SolveResult:
-        """Solve a challenge."""
+        """Solve a challenge using the state machine."""
         challenge = self._active_challenges.get(challenge_id)
         if not challenge:
             challenge = await self.challenge_manager.get(challenge_id)
             if not challenge:
                 raise ValueError(f"Challenge {challenge_id} not found")
 
+        self._current_challenge_id = challenge_id
         start_time = datetime.utcnow()
 
-        # Create orchestrator agent for this challenge
-        orchestrator_agent = await self.runtime.create_agent(
-            role="orchestrator",
-            name=f"Orchestrator-{challenge.name}",
-            objective=f"Solve challenge: {challenge.name}",
-            system_prompt=self._get_orchestrator_prompt(challenge),
-            capabilities=["challenge_triage", "task_decomposition", "agent_scheduling", "result_aggregation"],
-            allowed_tools=["challenge_triage", "agent_spawn", "memory_query", "evidence_submit", "experiment_create", "report_generate"],
-            resource_budget=ResourceBudget(
-                max_tokens=200000,
-                max_time_seconds=3600,
-                max_sub_agents=16,
-                max_commands=100,
-            ),
+        # Create authorization context for orchestrator
+        orchestrator_auth = self.auth_manager.create_context(
+            agent_id=f"orchestrator-{challenge_id}",
+            agent_role="orchestrator",
+            challenge_id=challenge_id,
+            custom_budget={
+                "token_budget": 200000,
+                "time_budget_seconds": 3600,
+                "sub_agent_budget": 16,
+                "command_budget": 100,
+            }
         )
 
-        # Spawn and execute
-        context = await self.runtime.spawn_agent(orchestrator_agent)
-        self._challenge_agents[challenge_id] = [orchestrator_agent.config.id]
+        # Register scope for this challenge in authorization manager
+        scope = self.scope_engine.get_scope(challenge_id)
+        if scope:
+            orchestrator_auth.scope = scope
 
+        # Run state machine
         try:
-            completed_agent = await self.runtime.execute_agent(context)
-            self._challenge_agents[challenge_id].extend(completed_agent.child_agents)
-
-            # Extract result
-            result_data = completed_agent.final_result or {}
-            flag = result_data.get("flag")
-            method = result_data.get("method", "")
-            evidence = result_data.get("evidence", [])
-
-            # Verify flag if found
-            flag_verified = False
-            if flag:
-                verification = await self.evidence.verify_flag(
-                    flag=flag,
-                    challenge_id=challenge_id,
-                    agent_id=completed_agent.config.id,
-                    method=method,
-                    evidence_artifacts=evidence,
-                )
-                flag_verified = verification.status.value == "verified"
-
-            solve_result = SolveResult(
-                challenge_id=challenge_id,
-                success=flag_verified,
-                flag=flag if flag_verified else None,
-                method=method,
-                evidence=evidence,
-                agents_used=self._challenge_agents.get(challenge_id, []),
-                duration_seconds=(datetime.utcnow() - start_time).total_seconds(),
-            )
-
-            self._solve_results[challenge_id] = solve_result
-
-            await log_audit(
-                agent_id="orchestrator",
-                action="challenge_solved",
-                target=challenge_id,
-                reason=f"Solved challenge: {challenge.name}",
-                result="success" if flag_verified else "partial",
-                risk_level="low",
-            )
-
-            return solve_result
-
+            result = await self._run_state_machine(challenge, orchestrator_auth)
+            return result
         except Exception as e:
-            solve_result = SolveResult(
-                challenge_id=challenge_id,
-                success=False,
-                duration_seconds=(datetime.utcnow() - start_time).total_seconds(),
-                error=str(e),
-            )
-            self._solve_results[challenge_id] = solve_result
-
-            await log_audit(
-                agent_id="orchestrator",
-                action="challenge_failed",
-                target=challenge_id,
-                reason=f"Failed to solve challenge: {challenge.name}",
-                result="error",
-                risk_level="low",
-            )
-
+            self._transition_state(OrchestratorState.FAILED)
             raise
+        finally:
+            self._current_challenge_id = None
+
+    async def _run_state_machine(self, challenge: Challenge, orchestrator_auth) -> SolveResult:
+        """Run the orchestrator state machine."""
+        start_time = datetime.utcnow()
+        
+        # DISCOVERY phase
+        self._transition_state(OrchestratorState.DISCOVERY)
+        await self._run_discovery_phase(challenge)
+        
+        # HYPOTHESIS phase
+        self._transition_state(OrchestratorState.HYPOTHESIS)
+        await self._run_hypothesis_phase(challenge)
+        
+        # INVESTIGATION phase
+        self._transition_state(OrchestratorState.INVESTIGATION)
+        await self._run_investigation_phase(challenge)
+        
+        # EXPLOITATION phase
+        self._transition_state(OrchestratorState.EXPLOITATION)
+        flag = await self._run_exploitation_phase(challenge)
+        
+        # VALIDATION phase
+        self._transition_state(OrchestratorState.VALIDATION)
+        evidence = await self._run_validation_phase(challenge, flag)
+        
+        # FLAG_VERIFICATION phase
+        self._transition_state(OrchestratorState.FLAG_VERIFICATION)
+        flag_verified = False
+        if flag:
+            flag_verified = await self._verify_flag(challenge, flag, evidence)
+        
+        # REPORT phase
+        self._transition_state(OrchestratorState.REPORT)
+        await self._generate_report(challenge)
+        
+        self._transition_state(OrchestratorState.COMPLETE)
+        
+        solve_result = SolveResult(
+            challenge_id=challenge.id,
+            success=flag_verified,
+            flag=flag if flag_verified else None,
+            method="State machine orchestration",
+            evidence=evidence,
+            agents_used=self._challenge_agents.get(challenge.id, []),
+            duration_seconds=(datetime.utcnow() - start_time).total_seconds(),
+        )
+        
+        self._solve_results[challenge.id] = solve_result
+        
+        await log_audit(
+            agent_id="orchestrator",
+            action="challenge_solved",
+            target=challenge.id,
+            reason=f"Solved challenge: {challenge.name}",
+            result="success" if flag_verified else "partial",
+            risk_level="low",
+        )
+        
+        return solve_result
+
+    async def _run_discovery_phase(self, challenge: Challenge):
+        """Run discovery phase - spawn recon agents."""
+        self._transition_state(OrchestratorState.DISCOVERY)
+        
+        # Spawn appropriate recon agents based on challenge category
+        recon_agents = []
+        for cat in challenge.category:
+            if cat == ChallengeCategory.WEB:
+                recon_agents.append(("web", "Web Recon", "Perform web reconnaissance"))
+            elif cat == ChallengeCategory.NETWORK:
+                recon_agents.append(("network", "Network Recon", "Perform network reconnaissance"))
+            elif cat == ChallengeCategory.OSINT:
+                recon_agents.append(("osint", "OSINT Recon", "Perform OSINT gathering"))
+        
+        # Spawn and run recon agents
+        for role, name, objective in recon_agents:
+            agent = await self.runtime.create_agent(
+                role=role,
+                name=f"{name}-{challenge.name}",
+                objective=objective,
+                parent_agent=None,
+                allowed_tools=self._get_allowed_tools_for_role(role),
+                resource_budget=ResourceBudget(max_time_seconds=300, max_sub_agents=2),
+            )
+            context = await self.runtime.spawn_agent(agent)
+            self._challenge_agents.setdefault(challenge.id, []).append(agent.config.id)
+            await self.runtime.execute_agent(context)
+
+    async def _run_hypothesis_phase(self, challenge: Challenge):
+        """Run hypothesis generation phase."""
+        self._transition_state(OrchestratorState.HYPOTHESIS)
+        
+        # Analyze findings from discovery
+        # Generate hypotheses using LLM
+        # This would integrate with a hypothesis engine
+        pass
+
+    async def _run_investigation_phase(self, challenge: Challenge):
+        """Run investigation phase - test hypotheses."""
+        self._transition_state(OrchestratorState.INVESTIGATION)
+        
+        # Spawn specialist agents to test hypotheses
+        pass
+
+    async def _run_exploitation_phase(self, challenge: Challenge) -> Optional[str]:
+        """Run exploitation phase - attempt to exploit vulnerabilities."""
+        self._transition_state(OrchestratorState.EXPLOITATION)
+        
+        # Spawn exploitation agents
+        # Return flag if found
+        return None
+
+    async def _run_validation_phase(self, challenge: Challenge, flag: Optional[str]) -> List[str]:
+        """Run validation phase - verify findings."""
+        self._transition_state(OrchestratorState.VALIDATION)
+        
+        # Verify evidence
+        return []
+
+    async def _verify_flag(self, challenge: Challenge, flag: str, evidence: List[str]) -> bool:
+        """Verify captured flag."""
+        self._transition_state(OrchestratorState.FLAG_VERIFICATION)
+        
+        verification = await self.evidence.verify_flag(
+            flag=flag,
+            challenge_id=challenge.id,
+            agent_id="orchestrator",
+            method="State machine exploitation",
+            evidence_artifacts=evidence,
+        )
+        
+        return verification.status.value == "verified"
+
+    async def _generate_report(self, challenge: Challenge):
+        """Generate final report."""
+        self._transition_state(OrchestratorState.REPORT)
+        
+        # Generate report
+        await self.generate_report(challenge.id)
+
+    def _get_allowed_tools_for_role(self, role: str) -> List[str]:
+        """Get allowed tools for agent role."""
+        tool_map = {
+            "web": ["nmap", "curl", "ffuf", "httpx", "nuclei", "sqlmap", "knock", "python"],
+            "crypto": ["hashcat", "john", "openssl", "python"],
+            "pwn": ["gdb", "pwntools", "checksec", "ROPgadget", "ropper", "python"],
+            "reverse": ["ghidra", "radare2", "angr", "gdb", "python"],
+            "forensics": ["volatility", "binwalk", "exiftool", "yara", "foremost", "python"],
+            "osint": ["nmap", "curl", "httpx", "python"],
+            "stego": ["steghide", "zsteg", "binwalk", "exiftool", "python"],
+            "mobile": ["apktool", "jadx", "frida", "python"],
+            "malware": ["yara", "binwalk", "ghidra", "radare2", "volatility", "python"],
+            "cloud": ["awscli", "kubectl", "trivy", "python"],
+            "network": ["nmap", "rustscan", "masscan", "tshark", "python"],
+            "ad": ["impacket", "kerbrute", "netexec", "python"],
+            "web3": ["foundry", "slither", "mythril", "python"],
+            "ai_security": ["python"],
+            "sidechannel": ["python"],
+            "firmware": ["binwalk", "ghidra", "radare2", "python"],
+            "social": ["python"],
+            "programming": ["python", "bash", "gcc", "rustc"],
+            "meta": ["python", "curl"],
+            "orchestrator": ["python", "curl"],
+        }
+        return tool_map.get(role, ["python"])
 
     async def _on_agent_start(self, agent: Agent):
         """Callback when agent starts."""
@@ -303,6 +539,7 @@ Never promote untested hypotheses. All findings must be verified by the Evidence
                 "name": challenge.name if challenge else "Unknown",
                 "categories": [c.value for c in challenge.category] if challenge else [],
             },
+            "orchestrator_state": self._state.value,
             "agents": agent_statuses,
             "result": self._solve_results.get(challenge_id).__dict__ if challenge_id in self._solve_results else None,
         }

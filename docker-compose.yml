@@ -65,7 +65,7 @@ services:
     profiles:
       - vector
 
-  # Permission Manager
+  # Permission Manager (SECURED - no Docker socket)
   permission-manager:
     build:
       context: .
@@ -81,7 +81,7 @@ services:
       - workspace:/workspace:ro
       - artifacts:/artifacts:ro
       - logs:/logs:rw
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # REMOVED: /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - ctf_control
     ports:
@@ -101,6 +101,19 @@ services:
         limits:
           cpus: "1.0"
           memory: "1g"
+    # Security hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN  # For tcpdump
+      - SYS_ADMIN  # For mount operations
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=unconfined
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+      - /run:rw,noexec,nosuid,size=100m
 
   # Orchestrator
   orchestrator:
@@ -152,6 +165,15 @@ services:
         limits:
           cpus: "2.0"
           memory: "4g"
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   # Agent containers (started on-demand by orchestrator)
   # These are defined as profiles for optional use
@@ -170,7 +192,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - web_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -187,6 +209,18 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-crypto:
     build:
@@ -202,7 +236,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - crypto_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -218,6 +252,15 @@ services:
           memory: "8g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-pwn:
     build:
@@ -233,7 +276,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - pwn_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -250,6 +293,18 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=unconfined
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-reverse:
     build:
@@ -265,7 +320,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - reverse_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -281,6 +336,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-forensics:
     build:
@@ -296,7 +360,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - forensics_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -312,6 +376,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-osint:
     build:
@@ -327,7 +400,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - osint_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -344,6 +417,15 @@ services:
           memory: "2g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-stego:
     build:
@@ -359,7 +441,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - stego_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -375,6 +457,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-mobile:
     build:
@@ -390,7 +481,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - mobile_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -406,6 +497,20 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RESOURCE
+    devices:
+      - "/dev/kvm:/dev/kvm:rwm"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-malware:
     build:
@@ -421,7 +526,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - malware_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -438,6 +543,17 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening - MALWARE AGENT EXTRA ISOLATION
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
+    # No internet access for malware analysis
+    # Network ctf_malware has no external gateway
 
   agent-cloud:
     build:
@@ -453,7 +569,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - cloud_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -470,6 +586,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-network:
     build:
@@ -485,7 +610,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - network_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -502,6 +627,18 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-supply-chain:
     build:
@@ -517,7 +654,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - supply_chain_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -533,6 +670,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-ad:
     build:
@@ -548,7 +694,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - ad_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -566,6 +712,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-web3:
     build:
@@ -581,7 +736,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - web3_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -597,6 +752,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-ai-security:
     build:
@@ -612,7 +776,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - ai_security_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -628,6 +792,15 @@ services:
           memory: "16g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-sidechannel:
     build:
@@ -643,7 +816,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - sidechannel_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -659,6 +832,18 @@ services:
           memory: "8g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+      - PERF_EVENTS
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-firmware:
     build:
@@ -674,7 +859,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - firmware_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -690,6 +875,19 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - "/dev/kvm:/dev/kvm:rwm"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-social:
     build:
@@ -705,7 +903,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - social_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -721,6 +919,15 @@ services:
           memory: "2g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-programming:
     build:
@@ -736,7 +943,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - programming_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -752,6 +959,15 @@ services:
           memory: "4g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+      - /run:rw,noexec,nosuid,size=100m
 
   agent-meta:
     build:
@@ -767,7 +983,7 @@ services:
       - ARTIFACTS_PATH=/artifacts
       - LOGS_PATH=/logs
     volumes:
-      - workspace:/workspace:rw
+      - meta_workspace:/workspace:rw
       - artifacts:/artifacts:rw
       - logs:/logs:rw
     networks:
@@ -783,6 +999,15 @@ services:
           memory: "2g"
     profiles:
       - agents
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+      - /run:rw,noexec,nosuid,size=100m
 
 networks:
   ctf_control:
@@ -809,6 +1034,7 @@ networks:
     ipam:
       config:
         - subnet: 10.103.0.0/24
+    # No external gateway - isolated
   ctf_attack_defense:
     driver: bridge
     name: ctf_attack_defense
@@ -844,3 +1070,124 @@ volumes:
       type: none
       o: bind
       device: ./examples/challenges
+  # Per-agent isolated workspaces
+  web_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/web
+  crypto_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/crypto
+  pwn_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/pwn
+  reverse_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/reverse
+  forensics_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/forensics
+  osint_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/osint
+  stego_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/stego
+  mobile_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/mobile
+  malware_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/malware
+  cloud_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/cloud
+  network_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/network
+  supply_chain_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/supply_chain
+  ad_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/ad
+  web3_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/web3
+  ai_security_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/ai_security
+  sidechannel_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/sidechannel
+  firmware_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/firmware
+  social_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/social
+  programming_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/programming
+  meta_workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspaces/meta

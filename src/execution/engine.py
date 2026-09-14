@@ -1,4 +1,4 @@
-"""Execution Engine - Core tool execution"""
+"""Execution Engine - Secure tool execution with schema validation and authorization"""
 import asyncio
 import json
 import uuid
@@ -8,11 +8,20 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Callable, Awaitable
 from pathlib import Path
+import re
 
 from ..config.settings import get_settings
 from ..config.loader import get_config_manager
 from ..artifacts import ArtifactManager, get_artifact_manager
 from ..observability import get_logger, log_command_execution
+from ..security import (
+    get_tool_schema_registry,
+    get_authorization_context,
+    get_scope_engine,
+    ToolSchema,
+    ToolArgumentSchema,
+    SchemaType,
+)
 from ..permissions import PermissionClient, get_permission_client
 
 
@@ -31,7 +40,7 @@ class ToolResult:
 
 
 class ToolWrapperBase:
-    """Base class for tool wrappers."""
+    """Base class for tool wrappers - secure execution without shell."""
 
     def __init__(self, tool_name: str, execution_engine: "ExecutionEngine"):
         self.tool_name = tool_name
@@ -49,32 +58,31 @@ class ToolWrapperBase:
         """Get timeout for this execution."""
         return arguments.get("timeout", 60)
 
+    def build_command(self, arguments: Dict[str, Any]) -> List[str]:
+        """Build command as argv list (NO shell). Override in subclasses."""
+        raise NotImplementedError
+
 
 class CommandWrapper(ToolWrapperBase):
-    """Wrapper for direct command execution."""
+    """Wrapper for direct command execution with argv (NO shell)."""
 
-    def __init__(self, tool_name: str, execution_engine: "ExecutionEngine", command_template: str):
+    def __init__(self, tool_name: str, execution_engine: "ExecutionEngine", command_template: List[str]):
         super().__init__(tool_name, execution_engine)
         self.command_template = command_template
 
-    async def execute(self, arguments: Dict[str, Any], agent_id: str) -> ToolResult:
-        """Execute command template with arguments."""
-        # Format command
-        try:
-            command = self.command_template.format(**arguments)
-        except KeyError as e:
-            return ToolResult(
-                tool_name=self.tool_name,
-                success=False,
-                error=f"Missing argument for command template: {e}",
-            )
-
-        return await self.execution_engine.execute_command(
-            command=command,
-            agent_id=agent_id,
-            timeout=arguments.get("timeout", self.get_timeout(arguments)),
-            working_dir=arguments.get("working_dir"),
-        )
+    def build_command(self, arguments: Dict[str, Any]) -> List[str]:
+        """Build command as argv list with argument substitution."""
+        cmd = []
+        for part in self.command_template:
+            if isinstance(part, str) and "{" in part and "}" in part:
+                # Substitute arguments
+                try:
+                    cmd.append(part.format(**arguments))
+                except KeyError as e:
+                    raise ValueError(f"Missing argument for command template: {e}")
+            else:
+                cmd.append(str(part))
+        return cmd
 
 
 class ToolWrapper:
@@ -92,6 +100,7 @@ class ToolWrapper:
         security_risk: str = "low",
         supported_agents: List[str] = None,
         wrapper: Optional[ToolWrapperBase] = None,
+        schema: Optional[ToolSchema] = None,
     ):
         self.name = name
         self.category = category
@@ -103,6 +112,7 @@ class ToolWrapper:
         self.security_risk = security_risk
         self.supported_agents = supported_agents or ["*"]
         self.wrapper = wrapper
+        self.schema = schema
 
     def is_available_for_agent(self, agent_role: str) -> bool:
         """Check if tool is available for agent role."""
@@ -110,11 +120,12 @@ class ToolWrapper:
 
 
 class ToolRegistry:
-    """Registry of available tools."""
+    """Registry of available tools with schemas."""
 
     def __init__(self):
         self._tools: Dict[str, ToolWrapper] = {}
         self._wrappers: Dict[str, ToolWrapperBase] = {}
+        self._schema_registry = get_tool_schema_registry()
         self._load_config()
 
     def _load_config(self):
@@ -125,6 +136,10 @@ class ToolRegistry:
         for category, tools in tools_config.items():
             if isinstance(tools, list):
                 for tool_config in tools:
+                    # Get schema if available
+                    tool_name = tool_config.get("name")
+                    schema = self._schema_registry.get(tool_name) if tool_name else None
+                    tool_config["schema"] = schema
                     self.register_tool(ToolWrapper(**tool_config))
 
     def register_tool(self, tool: ToolWrapper):
@@ -142,6 +157,10 @@ class ToolRegistry:
     def get_wrapper(self, name: str) -> Optional[ToolWrapperBase]:
         """Get wrapper for tool."""
         return self._wrappers.get(name)
+
+    def get_schema(self, name: str) -> Optional[ToolSchema]:
+        """Get schema for tool."""
+        return self._schema_registry.get(name)
 
     def list_tools(
         self,
@@ -165,13 +184,16 @@ class ToolRegistry:
 
 
 class ExecutionEngine:
-    """Main execution engine for tool execution."""
+    """Main execution engine for secure tool execution."""
 
     def __init__(self):
         self.settings = get_settings()
         self.registry = ToolRegistry()
         self.artifact_manager: Optional[ArtifactManager] = None
         self.permission_client: Optional[PermissionClient] = None
+        self.auth_manager = get_authorization_context()
+        self.scope_engine = get_scope_engine()
+        self.schema_registry = get_tool_schema_registry()
 
         # Tool execution hooks
         self.pre_execution_hooks: List[Callable[[str, Dict[str, Any], str], Awaitable[None]]] = []
@@ -186,10 +208,64 @@ class ExecutionEngine:
         self._register_builtin_wrappers()
 
     def _register_builtin_wrappers(self):
-        """Register built-in tool wrappers."""
-        # These would be specialized wrappers for each tool
-        # For now, we use the generic command wrapper
-        pass
+        """Register built-in tool wrappers with secure argv-based execution."""
+        # Network tools
+        self.registry.register_wrapper("nmap", CommandWrapper("nmap", self, ["nmap"]))
+        self.registry.register_wrapper("masscan", CommandWrapper("masscan", self, ["masscan"]))
+        self.registry.register_wrapper("rustscan", CommandWrapper("rustscan", self, ["rustscan"]))
+        
+        # Web tools
+        self.registry.register_wrapper("curl", CommandWrapper("curl", self, ["curl"]))
+        self.registry.register_wrapper("ffuf", CommandWrapper("ffuf", self, ["ffuf"]))
+        self.registry.register_wrapper("httpx", CommandWrapper("httpx", self, ["httpx"]))
+        self.registry.register_wrapper("nuclei", CommandWrapper("nuclei", self, ["nuclei"]))
+        self.registry.register_wrapper("sqlmap", CommandWrapper("sqlmap", self, ["sqlmap"]))
+        
+        # Pwn/Reverse tools
+        self.registry.register_wrapper("gdb", CommandWrapper("gdb", self, ["gdb"]))
+        self.registry.register_wrapper("pwntools", CommandWrapper("pwntools", self, ["python3", "-c"]))
+        self.registry.register_wrapper("checksec", CommandWrapper("checksec", self, ["checksec"]))
+        self.registry.register_wrapper("ROPgadget", CommandWrapper("ROPgadget", self, ["ROPgadget"]))
+        self.registry.register_wrapper("ropper", CommandWrapper("ropper", self, ["ropper"]))
+        self.registry.register_wrapper("ghidra", CommandWrapper("ghidra", self, ["ghidra"]))
+        self.registry.register_wrapper("radare2", CommandWrapper("radare2", self, ["r2"]))
+        
+        # Crypto tools
+        self.registry.register_wrapper("hashcat", CommandWrapper("hashcat", self, ["hashcat"]))
+        self.registry.register_wrapper("john", CommandWrapper("john", self, ["john"]))
+        self.registry.register_wrapper("openssl", CommandWrapper("openssl", self, ["openssl"]))
+        
+        # Forensics tools
+        self.registry.register_wrapper("volatility", CommandWrapper("volatility", self, ["python3", "-m", "volatility"]))
+        self.registry.register_wrapper("binwalk", CommandWrapper("binwalk", self, ["binwalk"]))
+        self.registry.register_wrapper("exiftool", CommandWrapper("exiftool", self, ["exiftool"]))
+        self.registry.register_wrapper("yara", CommandWrapper("yara", self, ["yara"]))
+        
+        # Stego tools
+        self.registry.register_wrapper("steghide", CommandWrapper("steghide", self, ["steghide"]))
+        self.registry.register_wrapper("zsteg", CommandWrapper("zsteg", self, ["zsteg"]))
+        
+        # AD tools
+        self.registry.register_wrapper("impacket", CommandWrapper("impacket", self, ["python3", "-m", "impacket"]))
+        self.registry.register_wrapper("kerbrute", CommandWrapper("kerbrute", self, ["kerbrute"]))
+        self.registry.register_wrapper("netexec", CommandWrapper("netexec", self, ["nxc"]))
+        
+        # Web3 tools
+        self.registry.register_wrapper("foundry", CommandWrapper("foundry", self, ["forge"]))
+        self.registry.register_wrapper("slither", CommandWrapper("slither", self, ["slither"]))
+        self.registry.register_wrapper("mythril", CommandWrapper("mythril", self, ["mythril"]))
+        
+        # Cloud tools
+        self.registry.register_wrapper("awscli", CommandWrapper("awscli", self, ["aws"]))
+        self.registry.register_wrapper("kubectl", CommandWrapper("kubectl", self, ["kubectl"]))
+        self.registry.register_wrapper("trivy", CommandWrapper("trivy", self, ["trivy"]))
+        
+        # Execution tools
+        self.registry.register_wrapper("python", CommandWrapper("python", self, ["python3", "-c"]))
+        self.registry.register_wrapper("bash", CommandWrapper("bash", self, ["bash", "-c"]))
+        
+        # Generic command (restricted)
+        self.registry.register_wrapper("execute_command", CommandWrapper("execute_command", self, ["/bin/bash", "-c"]))
 
     async def execute_tool(
         self,
@@ -198,10 +274,58 @@ class ExecutionEngine:
         agent_id: str,
         allowed_tools: Optional[List[str]] = None,
     ) -> ToolResult:
-        """Execute a tool."""
+        """Execute a tool with full security validation."""
         start_time = time.time()
 
-        # Check if tool is allowed
+        # 1. Get authorization context
+        auth_manager = get_authorization_context()
+        auth_context = auth_manager.get_context(agent_id)
+        if not auth_context:
+            return ToolResult(
+                tool_name=tool_name,
+                success=False,
+                error=f"No authorization context for agent {agent_id}",
+            )
+
+        # 2. Determine capability for this tool
+        capability = self._tool_to_capability(tool_name)
+        if not capability:
+            return ToolResult(
+                tool_name=tool_name,
+                success=False,
+                error=f"No capability mapping for tool: {tool_name}",
+            )
+
+        # 3. Authorize the action
+        auth_result = auth_manager.authorize_action(
+            agent_id=agent_id,
+            action=f"execute_{tool_name}",
+            capability=capability,
+            tool=tool_name,
+            target=arguments.get("target") or arguments.get("url"),
+            port=arguments.get("port"),
+            protocol=arguments.get("protocol", "tcp"),
+            path=arguments.get("path") or arguments.get("file"),
+            operation=arguments.get("operation"),
+            resource_request=arguments.get("resource_request", {}),
+            metadata={"arguments": arguments},
+        )
+
+        if not auth_result.allowed:
+            return ToolResult(
+                tool_name=tool_name,
+                success=False,
+                error=f"Authorization denied: {auth_result.reason}",
+            )
+
+        if auth_result.requires_approval:
+            return ToolResult(
+                tool_name=tool_name,
+                success=False,
+                error=f"Requires approval: {auth_result.reason}",
+            )
+
+        # 4. Check if tool is allowed
         if allowed_tools and tool_name not in allowed_tools and "*" not in allowed_tools:
             return ToolResult(
                 tool_name=tool_name,
@@ -209,7 +333,7 @@ class ExecutionEngine:
                 error=f"Tool '{tool_name}' not allowed for this agent",
             )
 
-        # Get tool info
+        # 5. Get tool info
         tool = self.registry.get_tool(tool_name)
         if not tool:
             return ToolResult(
@@ -218,20 +342,38 @@ class ExecutionEngine:
                 error=f"Tool '{tool_name}' not found in registry",
             )
 
-        # Check if agent role is supported
-        # (would need agent role from agent_id)
+        # 6. Validate arguments against schema
+        schema = self.registry.get_schema(tool_name) or tool.schema
+        if schema:
+            valid, error, validated_args = self.schema_registry.validate(tool_name, arguments)
+            if not valid:
+                return ToolResult(
+                    tool_name=tool_name,
+                    success=False,
+                    error=f"Argument validation failed: {error}",
+                )
+        else:
+            validated_args = arguments
 
-        # Run pre-execution hooks
+        # 7. Check agent role support
+        agent_role = self._get_agent_role(agent_id)
+        if not tool.is_available_for_agent(agent_role):
+            return ToolResult(
+                tool_name=tool_name,
+                success=False,
+                error=f"Tool '{tool_name}' not available for agent role '{agent_role}'",
+            )
+
+        # 8. Run pre-execution hooks
         for hook in self.pre_execution_hooks:
-            await hook(tool_name, arguments, agent_id)
+            await hook(tool_name, validated_args, agent_id)
 
-        # Execute
+        # 9. Execute
         try:
             if tool.wrapper:
-                result = await tool.wrapper.execute(arguments, agent_id)
+                result = await tool.wrapper.execute(validated_args, agent_id)
             else:
-                # Generic command execution
-                result = await self._execute_generic(tool, arguments, agent_id)
+                result = await self._execute_generic(tool, validated_args, agent_id)
         except Exception as e:
             result = ToolResult(
                 tool_name=tool_name,
@@ -242,19 +384,77 @@ class ExecutionEngine:
 
         result.execution_time = time.time() - start_time
 
-        # Run post-execution hooks
+        # 10. Record command in authorization context
+        auth_context.record_command()
+
+        # 11. Run post-execution hooks
         for hook in self.post_execution_hooks:
             await hook(result)
 
-        # Log execution
+        # 12. Log execution
         await log_command_execution(
             agent_id=agent_id,
             tool=tool_name,
-            arguments=arguments,
+            arguments=validated_args,
             result=result,
         )
 
         return result
+
+    def _tool_to_capability(self, tool_name: str) -> Optional[Capability]:
+        """Map tool name to capability."""
+        from ..security.capabilities import Capability
+        
+        mapping = {
+            "nmap": Capability.TOOL_NMAP,
+            "masscan": Capability.TOOL_MASSCAN,
+            "rustscan": Capability.TOOL_RUSTSCAN,
+            "curl": Capability.TOOL_CURL,
+            "ffuf": Capability.TOOL_FFUF,
+            "httpx": Capability.TOOL_HTTPX,
+            "nuclei": Capability.TOOL_NUCLEI,
+            "sqlmap": Capability.TOOL_SQLMAP,
+            "gdb": Capability.TOOL_GDB,
+            "pwntools": Capability.TOOL_PWNTOOLS,
+            "checksec": Capability.TOOL_CHECKSEC,
+            "ROPgadget": Capability.TOOL_ROPGADGET,
+            "ropper": Capability.TOOL_ROPPER,
+            "ghidra": Capability.TOOL_GHIDRA,
+            "radare2": Capability.TOOL_RADARE2,
+            "angr": Capability.TOOL_ANGRI,
+            "hashcat": Capability.TOOL_HASHCAT,
+            "john": Capability.TOOL_JOHN,
+            "openssl": Capability.TOOL_OPENSSL,
+            "volatility": Capability.TOOL_VOLATILITY,
+            "binwalk": Capability.TOOL_BINWALK,
+            "foremost": Capability.TOOL_FOREMOST,
+            "exiftool": Capability.TOOL_EXIFTOOL,
+            "yara": Capability.TOOL_YARA,
+            "steghide": Capability.TOOL_STEGHIDE,
+            "zsteg": Capability.TOOL_ZSTEG,
+            "apktool": Capability.TOOL_APKTOOL,
+            "frida": Capability.TOOL_FRIDA,
+            "impacket": Capability.TOOL_IMPACKET,
+            "kerbrute": Capability.TOOL_KERBRUTE,
+            "netexec": Capability.TOOL_NETEXEC,
+            "foundry": Capability.TOOL_FOUNDRY,
+            "slither": Capability.TOOL_SLITHER,
+            "mythril": Capability.TOOL_MYTHRIL,
+            "awscli": Capability.TOOL_AWSCLI,
+            "kubectl": Capability.TOOL_KUBECTL,
+            "trivy": Capability.TOOL_TRIVY,
+            "python": Capability.EXEC_PYTHON_SCRIPT,
+            "bash": Capability.EXEC_BASH_SCRIPT,
+            "execute_command": Capability.EXEC_COMMAND,
+        }
+        return mapping.get(tool_name)
+
+    def _get_agent_role(self, agent_id: str) -> str:
+        """Extract agent role from agent ID."""
+        parts = agent_id.split("-")
+        if len(parts) >= 2:
+            return parts[1]
+        return "unknown"
 
     async def _execute_generic(
         self,
@@ -262,51 +462,51 @@ class ExecutionEngine:
         arguments: Dict[str, Any],
         agent_id: str,
     ) -> ToolResult:
-        """Execute tool generically via command line."""
-        # Build command based on tool and arguments
+        """Execute tool generically via secure argv-based command."""
+        # Build command as argv list (NO shell)
         if tool.name in ("python3", "python"):
-            command = self._build_python_command(arguments)
+            command = self._build_python_argv(arguments)
         elif tool.name in ("bash", "sh"):
-            command = self._build_bash_command(arguments)
+            command = self._build_bash_argv(arguments)
         else:
-            command = self._build_generic_command(tool, arguments)
+            command = self._build_generic_argv(tool, arguments)
 
-        return await self.execute_command(
+        return await self.execute_command_argv(
             command=command,
             agent_id=agent_id,
             timeout=arguments.get("timeout", 60),
             working_dir=arguments.get("working_dir"),
         )
 
-    def _build_python_command(self, arguments: Dict[str, Any]) -> str:
-        """Build Python command."""
+    def _build_python_argv(self, arguments: Dict[str, Any]) -> List[str]:
+        """Build Python command as argv."""
         script = arguments.get("script", "")
         args = arguments.get("args", [])
         if script:
-            return f"python3 -c {shlex.quote(script)} {' '.join(shlex.quote(a) for a in args)}"
-        return "python3"
+            return ["python3", "-c", script] + [str(a) for a in args]
+        return ["python3"]
 
-    def _build_bash_command(self, arguments: Dict[str, Any]) -> str:
-        """Build bash command."""
+    def _build_bash_argv(self, arguments: Dict[str, Any]) -> List[str]:
+        """Build Bash command as argv."""
         script = arguments.get("script", "")
         if script:
-            return f"bash -c {shlex.quote(script)}"
-        return "bash"
+            return ["bash", "-c", script]
+        return ["bash"]
 
-    def _build_generic_command(self, tool: ToolWrapper, arguments: Dict[str, Any]) -> str:
-        """Build generic command."""
+    def _build_generic_argv(self, tool: ToolWrapper, arguments: Dict[str, Any]) -> List[str]:
+        """Build generic command as argv."""
         args = arguments.get("args", [])
-        return f"{tool.binary} {' '.join(shlex.quote(str(a)) for a in args)}"
+        return [tool.binary] + [str(a) for a in args]
 
-    async def execute_command(
+    async def execute_command_argv(
         self,
-        command: str,
+        command: List[str],
         agent_id: str,
         timeout: int = 60,
         working_dir: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
     ) -> ToolResult:
-        """Execute a raw command."""
+        """Execute a command as argv list (NO shell)."""
         start_time = time.time()
 
         # Prepare environment
@@ -323,9 +523,9 @@ class ExecutionEngine:
         cwd.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Execute command
-            process = await asyncio.create_subprocess_shell(
-                command,
+            # Execute command with argv (NO shell)
+            process = await asyncio.create_subprocess_exec(
+                *command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(cwd),
@@ -359,7 +559,7 @@ class ExecutionEngine:
                 artifact_id = await self.artifact_manager.store(
                     content=stdout.decode("utf-8", errors="replace"),
                     filename=f"stdout_{agent_id}_{int(time.time())}.txt",
-                    metadata={"agent_id": agent_id, "command": command, "type": "stdout"},
+                    metadata={"agent_id": agent_id, "command": " ".join(command), "type": "stdout"},
                 )
                 artifacts.append(artifact_id)
 
@@ -367,7 +567,7 @@ class ExecutionEngine:
                 artifact_id = await self.artifact_manager.store(
                     content=stderr.decode("utf-8", errors="replace"),
                     filename=f"stderr_{agent_id}_{int(time.time())}.txt",
-                    metadata={"agent_id": agent_id, "command": command, "type": "stderr"},
+                    metadata={"agent_id": agent_id, "command": " ".join(command), "type": "stderr"},
                 )
                 artifacts.append(artifact_id)
 
@@ -413,7 +613,7 @@ class ExecutionEngine:
             reason=f"Install {tool_name} for agent execution",
             parameters={
                 "package_name": tool_name,
-                "package_manager": "apt",  # Would be determined from tool config
+                "package_manager": "apt",
             },
         )
 

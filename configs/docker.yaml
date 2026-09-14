@@ -1,0 +1,322 @@
+# Docker Configuration
+
+docker:
+  # Base images
+  base_images:
+    ubuntu: "ubuntu:24.04"
+    debian: "debian:12-slim"
+    alpine: "alpine:3.20"
+    python: "python:3.12-slim"
+
+  # Registry
+  registry: "local"
+  prefix: "ctf"
+
+  # Network configuration
+  networks:
+    ctf_control:
+      driver: "bridge"
+      subnet: "10.100.0.0/24"
+      gateway: "10.100.0.1"
+      internal: true
+
+    ctf_workspace:
+      driver: "bridge"
+      subnet: "10.101.0.0/24"
+      gateway: "10.101.0.1"
+      internal: false
+
+    ctf_targets:
+      driver: "bridge"
+      subnet: "10.102.0.0/24"
+      gateway: "10.102.0.1"
+      internal: true
+
+    ctf_malware:
+      driver: "bridge"
+      subnet: "10.103.0.0/24"
+      gateway: "10.103.0.1"
+      internal: true
+      enable_ipv6: false
+
+    ctf_attack_defense:
+      driver: "bridge"
+      subnet: "10.104.0.0/24"
+      gateway: "10.104.0.1"
+      internal: true
+
+  # Volume configuration
+  volumes:
+    workspace:
+      driver: "local"
+      driver_opts:
+        type: "none"
+        o: "bind"
+        device: "/workspace"
+
+    artifacts:
+      driver: "local"
+      driver_opts:
+        type: "none"
+        o: "bind"
+        device: "/artifacts"
+
+    logs:
+      driver: "local"
+      driver_opts:
+        type: "none"
+        o: "bind"
+        device: "/logs"
+
+    challenge:
+      driver: "local"
+      driver_opts:
+        type: "none"
+        o: "bind"
+        device: "/challenge"
+
+  # Container defaults
+  container_defaults:
+    user: "ctf:ctf"
+    read_only_rootfs: true
+    cap_drop:
+      - "ALL"
+    cap_add: []
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 100
+    cpus: "1.0"
+    memory: "2g"
+    memory_swap: "2g"
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=1g"
+      - "/run:rw,noexec,nosuid,size=100m"
+    ulimits:
+      - name: "nofile"
+        soft: 1024
+        hard: 1024
+      - name: "nproc"
+        soft: 50
+        hard: 50
+
+  # Agent container profiles
+  agent_profiles:
+    base:
+      extends: "container_defaults"
+      image: "ctf/agent-base:latest"
+      networks: ["ctf_control", "ctf_workspace"]
+      volumes:
+        - "workspace:/workspace:rw"
+        - "artifacts:/artifacts:rw"
+        - "logs:/logs:rw"
+
+    web:
+      extends: "base"
+      image: "ctf/agent-web:latest"
+      networks: ["ctf_control", "ctf_workspace", "ctf_targets"]
+      cap_add:
+        - "NET_RAW"
+        - "NET_ADMIN"
+      cpus: "2.0"
+      memory: "4g"
+
+    crypto:
+      extends: "base"
+      image: "ctf/agent-crypto:latest"
+      cpus: "4.0"
+      memory: "8g"
+
+    pwn:
+      extends: "base"
+      image: "ctf/agent-pwn:latest"
+      cap_add:
+        - "SYS_PTRACE"
+      security_opt:
+        - "no-new-privileges:true"
+        - "seccomp=unconfined"
+      cpus: "2.0"
+      memory: "4g"
+
+    reverse:
+      extends: "base"
+      image: "ctf/agent-re:latest"
+      cpus: "2.0"
+      memory: "4g"
+
+    forensics:
+      extends: "base"
+      image: "ctf/agent-forensics:latest"
+      cpus: "2.0"
+      memory: "4g"
+
+    osint:
+      extends: "base"
+      image: "ctf/agent-osint:latest"
+      networks: ["ctf_control", "ctf_workspace", "ctf_targets"]
+      cpus: "1.0"
+      memory: "2g"
+
+    stego:
+      extends: "base"
+      image: "ctf/agent-stego:latest"
+      cpus: "2.0"
+      memory: "4g"
+
+    mobile:
+      extends: "base"
+      image: "ctf/agent-mobile:latest"
+      cap_add:
+        - "SYS_ADMIN"
+        - "SYS_RESOURCE"
+      devices:
+        - "/dev/kvm:/dev/kvm:rwm"
+      cpus: "2.0"
+      memory: "4g"
+
+    malware:
+      extends: "base"
+      image: "ctf/agent-malware:latest"
+      networks: ["ctf_control", "ctf_workspace", "ctf_malware"]
+      read_only_rootfs: true
+      cpus: "2.0"
+      memory: "4g"
+
+    cloud:
+      extends: "base"
+      image: "ctf/agent-cloud:latest"
+      networks: ["ctf_control", "ctf_workspace", "ctf_targets"]
+      cpus: "2.0"
+      memory: "4g"
+
+    network:
+      extends: "base"
+      image: "ctf/agent-network:latest"
+      cap_add:
+        - "NET_RAW"
+        - "NET_ADMIN"
+      networks: ["ctf_control", "ctf_workspace", "ctf_targets"]
+      cpus: "2.0"
+      memory: "4g"
+
+    supply_chain:
+      extends: "base"
+      image: "ctf/agent-supply-chain:latest"
+      cpus: "2.0"
+      memory: "4g"
+
+    ad:
+      extends: "base"
+      image: "ctf/agent-ad:latest"
+      networks: ["ctf_control", "ctf_workspace", "ctf_targets", "ctf_attack_defense"]
+      cpus: "2.0"
+      memory: "4g"
+
+    web3:
+      extends: "base"
+      image: "ctf/agent-web3:latest"
+      cpus: "2.0"
+      memory: "4g"
+
+    ai_security:
+      extends: "base"
+      image: "ctf/agent-ai-security:latest"
+      cpus: "4.0"
+      memory: "16g"
+
+    sidechannel:
+      extends: "base"
+      image: "ctf/agent-sidechannel:latest"
+      cap_add:
+        - "SYS_ADMIN"
+        - "PERF_EVENTS"
+      cpus: "4.0"
+      memory: "8g"
+
+    firmware:
+      extends: "base"
+      image: "ctf/agent-firmware:latest"
+      cap_add:
+        - "SYS_ADMIN"
+      devices:
+        - "/dev/kvm:/dev/kvm:rwm"
+      cpus: "2.0"
+      memory: "4g"
+
+    social:
+      extends: "base"
+      image: "ctf/agent-social:latest"
+      cpus: "1.0"
+      memory: "2g"
+
+    programming:
+      extends: "base"
+      image: "ctf/agent-programming:latest"
+      cpus: "2.0"
+      memory: "4g"
+
+    meta:
+      extends: "base"
+      image: "ctf/agent-meta:latest"
+      cpus: "1.0"
+      memory: "2g"
+
+  # Special containers
+  orchestrator:
+    image: "ctf/orchestrator:latest"
+    user: "ctf:ctf"
+    networks: ["ctf_control", "ctf_workspace", "ctf_targets"]
+    volumes:
+      - "workspace:/workspace:rw"
+      - "artifacts:/artifacts:rw"
+      - "logs:/logs:rw"
+      - "challenge:/challenge:ro"
+    ports:
+      - "8000:8000"
+    environment:
+      - "PYTHONUNBUFFERED=1"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+        reservations:
+          cpus: "1.0"
+          memory: "2g"
+
+  permission_manager:
+    image: "ctf/permission-manager:latest"
+    user: "root"
+    networks: ["ctf_control"]
+    volumes:
+      - "workspace:/workspace:ro"
+      - "artifacts:/artifacts:ro"
+      - "logs:/logs:rw"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    ports:
+      - "8080:8080"
+    cap_add:
+      - "SYS_ADMIN"
+      - "CAP_DAC_OVERRIDE"
+      - "CAP_SYS_RESOURCE"
+    security_opt:
+      - "seccomp=unconfined"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "1g"
+        reservations:
+          cpus: "0.5"
+          memory: "512m"
+
+  # Build configuration
+  build:
+    parallel: true
+    pull: false
+    no_cache: false
+    target: "final"
+    args:
+      BASE_IMAGE: "ubuntu:24.04"
+      PYTHON_VERSION: "3.12"
+      UID: "1000"
+      GID: "1000"

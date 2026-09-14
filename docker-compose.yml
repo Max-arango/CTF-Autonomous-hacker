@@ -1,0 +1,846 @@
+version: '3.8'
+
+services:
+  # Database
+  db:
+    image: postgres:16-alpine
+    container_name: ctf_db
+    environment:
+      POSTGRES_DB: ctf
+      POSTGRES_USER: ctf
+      POSTGRES_PASSWORD: ctf
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ctf_control
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ctf -d ctf"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: ctf_redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - ctf_control
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "1g"
+
+  # Vector Database (optional)
+  qdrant:
+    image: qdrant/qdrant:v1.10
+    container_name: ctf_qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - ctf_control
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    profiles:
+      - vector
+
+  # Permission Manager
+  permission-manager:
+    build:
+      context: .
+      dockerfile: docker/permission-manager/Dockerfile
+    container_name: ctf_permission_manager
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CONFIG_PATH=/app/configs/permissions.yaml
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql+asyncpg://ctf:ctf@db:5432/ctf
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - workspace:/workspace:ro
+      - artifacts:/artifacts:ro
+      - logs:/logs:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ctf_control
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "1g"
+
+  # Orchestrator
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/orchestrator/Dockerfile
+    container_name: ctf_orchestrator
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CONFIG_PATH=/app/configs/system.yaml
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql+asyncpg://ctf:ctf@db:5432/ctf
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - LLM_PROVIDER=nemotron
+      - NEMOTRON_API_KEY=${NEMOTRON_API_KEY}
+      - NEMOTRON_BASE_URL=https://integrate.api.nvidia.com/v1
+      - NEMOTRON_MODEL=nemotron-3-5-lightning-free
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+      - CTF_MODE=JEOPARDY
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+      - challenge:/challenge:ro
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_targets
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      permission-manager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+
+  # Agent containers (started on-demand by orchestrator)
+  # These are defined as profiles for optional use
+
+  agent-web:
+    build:
+      context: .
+      dockerfile: docker/agent-web/Dockerfile
+    container_name: ctf_agent_web
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=web
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_targets
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-crypto:
+    build:
+      context: .
+      dockerfile: docker/agent-crypto/Dockerfile
+    container_name: ctf_agent_crypto
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=crypto
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: "8g"
+    profiles:
+      - agents
+
+  agent-pwn:
+    build:
+      context: .
+      dockerfile: docker/agent-pwn/Dockerfile
+    container_name: ctf_agent_pwn
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=pwn
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_targets
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-reverse:
+    build:
+      context: .
+      dockerfile: docker/agent-re/Dockerfile
+    container_name: ctf_agent_reverse
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=reverse
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-forensics:
+    build:
+      context: .
+      dockerfile: docker/agent-forensics/Dockerfile
+    container_name: ctf_agent_forensics
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=forensics
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-osint:
+    build:
+      context: .
+      dockerfile: docker/agent-osint/Dockerfile
+    container_name: ctf_agent_osint
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=osint
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_targets
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    profiles:
+      - agents
+
+  agent-stego:
+    build:
+      context: .
+      dockerfile: docker/agent-stego/Dockerfile
+    container_name: ctf_agent_stego
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=stego
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-mobile:
+    build:
+      context: .
+      dockerfile: docker/agent-mobile/Dockerfile
+    container_name: ctf_agent_mobile
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=mobile
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-malware:
+    build:
+      context: .
+      dockerfile: docker/agent-malware/Dockerfile
+    container_name: ctf_agent_malware
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=malware
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_malware
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-cloud:
+    build:
+      context: .
+      dockerfile: docker/agent-cloud/Dockerfile
+    container_name: ctf_agent_cloud
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=cloud
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_targets
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-network:
+    build:
+      context: .
+      dockerfile: docker/agent-network/Dockerfile
+    container_name: ctf_agent_network
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=network
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_targets
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-supply-chain:
+    build:
+      context: .
+      dockerfile: docker/agent-supply-chain/Dockerfile
+    container_name: ctf_agent_supply_chain
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=supply_chain
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-ad:
+    build:
+      context: .
+      dockerfile: docker/agent-ad/Dockerfile
+    container_name: ctf_agent_ad
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=ad
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+      - ctf_targets
+      - ctf_attack_defense
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-web3:
+    build:
+      context: .
+      dockerfile: docker/agent-web3/Dockerfile
+    container_name: ctf_agent_web3
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=web3
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-ai-security:
+    build:
+      context: .
+      dockerfile: docker/agent-ai-security/Dockerfile
+    container_name: ctf_agent_ai_security
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=ai_security
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: "16g"
+    profiles:
+      - agents
+
+  agent-sidechannel:
+    build:
+      context: .
+      dockerfile: docker/agent-sidechannel/Dockerfile
+    container_name: ctf_agent_sidechannel
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=sidechannel
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: "8g"
+    profiles:
+      - agents
+
+  agent-firmware:
+    build:
+      context: .
+      dockerfile: docker/agent-firmware/Dockerfile
+    container_name: ctf_agent_firmware
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=firmware
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-social:
+    build:
+      context: .
+      dockerfile: docker/agent-social/Dockerfile
+    container_name: ctf_agent_social
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=social
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    profiles:
+      - agents
+
+  agent-programming:
+    build:
+      context: .
+      dockerfile: docker/agent-programming/Dockerfile
+    container_name: ctf_agent_programming
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=programming
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4g"
+    profiles:
+      - agents
+
+  agent-meta:
+    build:
+      context: .
+      dockerfile: docker/agent-meta/Dockerfile
+    container_name: ctf_agent_meta
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_TYPE=meta
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - PERMISSION_MANAGER_URL=http://permission-manager:8080
+      - WORKSPACE_PATH=/workspace
+      - ARTIFACTS_PATH=/artifacts
+      - LOGS_PATH=/logs
+    volumes:
+      - workspace:/workspace:rw
+      - artifacts:/artifacts:rw
+      - logs:/logs:rw
+    networks:
+      - ctf_control
+      - ctf_workspace
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    profiles:
+      - agents
+
+networks:
+  ctf_control:
+    driver: bridge
+    name: ctf_control
+    ipam:
+      config:
+        - subnet: 10.100.0.0/24
+  ctf_workspace:
+    driver: bridge
+    name: ctf_workspace
+    ipam:
+      config:
+        - subnet: 10.101.0.0/24
+  ctf_targets:
+    driver: bridge
+    name: ctf_targets
+    ipam:
+      config:
+        - subnet: 10.102.0.0/24
+  ctf_malware:
+    driver: bridge
+    name: ctf_malware
+    ipam:
+      config:
+        - subnet: 10.103.0.0/24
+  ctf_attack_defense:
+    driver: bridge
+    name: ctf_attack_defense
+    ipam:
+      config:
+        - subnet: 10.104.0.0/24
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+  workspace:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./workspace
+  artifacts:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./artifacts
+  logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
+  challenge:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./examples/challenges

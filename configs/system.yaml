@@ -1,0 +1,60 @@
+# System-wide configuration
+
+system:
+  name: "autonomous-ctf-environment"
+  version: "0.1.0"
+  mode: "JEOPARDY"  # JEOPARDY | MACHINES | ATTACK_DEFENSE
+
+  # Agent limits
+  max_agent_depth: 4
+  max_active_agents: 32
+  default_agent_timeout: 300
+  default_token_budget: 100000
+
+  # Resource limits per agent
+  default_cpu_limit: "1.0"
+  default_memory_limit: "2g"
+  default_pids_limit: 100
+
+  # Paths
+  workspace_path: "/workspace"
+  artifacts_path: "/artifacts"
+  logs_path: "/logs"
+
+  # Database
+  database:
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+
+  # Redis
+  redis:
+    max_connections: 50
+    socket_timeout: 5
+
+  # Observability
+  observability:
+    log_level: "INFO"
+    log_format: "json"
+    metrics_enabled: true
+    tracing_enabled: true
+
+  # Security
+  security:
+    audit_log_immutable: true
+    artifact_hash_algorithm: "sha256"
+    allowed_networks:
+      - "ctf_control"
+      - "ctf_workspace"
+      - "ctf_targets"
+
+  # Experiment engine
+  experiment:
+    max_concurrent: 8
+    default_timeout: 600
+    retain_failed: true
+
+  # Evidence engine
+  evidence:
+    verification_required: true
+    min_confidence_threshold: 0.7

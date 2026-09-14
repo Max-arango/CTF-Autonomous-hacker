@@ -1,0 +1,1280 @@
+# Tool Registry Configuration
+
+tools:
+  # Base tools (available in all containers)
+  base:
+    - name: "git"
+      category: "version_control"
+      binary: "git"
+      version_check: "git --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "curl"
+      category: "network"
+      binary: "curl"
+      version_check: "curl --version"
+      requires_root: false
+      network_required: true
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "wget"
+      category: "network"
+      binary: "wget"
+      version_check: "wget --version"
+      requires_root: false
+      network_required: true
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "jq"
+      category: "data_processing"
+      binary: "jq"
+      version_check: "jq --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "yq"
+      category: "data_processing"
+      binary: "yq"
+      version_check: "yq --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "ripgrep"
+      category: "search"
+      binary: "rg"
+      version_check: "rg --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "fd"
+      category: "search"
+      binary: "fd"
+      version_check: "fd --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "file"
+      category: "analysis"
+      binary: "file"
+      version_check: "file --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "strings"
+      category: "analysis"
+      binary: "strings"
+      version_check: "strings --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "xxd"
+      category: "analysis"
+      binary: "xxd"
+      version_check: "xxd -v"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "tar"
+      category: "archive"
+      binary: "tar"
+      version_check: "tar --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "unzip"
+      category: "archive"
+      binary: "unzip"
+      version_check: "unzip -v"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "7zip"
+      category: "archive"
+      binary: "7z"
+      version_check: "7z"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "openssl"
+      category: "crypto"
+      binary: "openssl"
+      version_check: "openssl version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "ssh"
+      category: "network"
+      binary: "ssh"
+      version_check: "ssh -V"
+      requires_root: false
+      network_required: true
+      container_profile: "base"
+      security_risk: "medium"
+      supported_agents: ["network", "ad", "cloud"]
+
+    - name: "scp"
+      category: "network"
+      binary: "scp"
+      version_check: "scp -V"
+      requires_root: false
+      network_required: true
+      container_profile: "base"
+      security_risk: "medium"
+      supported_agents: ["network", "ad", "cloud"]
+
+    - name: "rsync"
+      category: "network"
+      binary: "rsync"
+      version_check: "rsync --version"
+      requires_root: false
+      network_required: true
+      container_profile: "base"
+      security_risk: "medium"
+      supported_agents: ["network", "ad", "cloud"]
+
+    - name: "python3"
+      category: "runtime"
+      binary: "python3"
+      version_check: "python3 --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "pipx"
+      category: "package_manager"
+      binary: "pipx"
+      version_check: "pipx --version"
+      requires_root: false
+      network_required: true
+      container_profile: "base"
+      security_risk: "medium"
+      supported_agents: ["*"]
+
+    - name: "uv"
+      category: "package_manager"
+      binary: "uv"
+      version_check: "uv --version"
+      requires_root: false
+      network_required: true
+      container_profile: "base"
+      security_risk: "medium"
+      supported_agents: ["*"]
+
+    - name: "tmux"
+      category: "terminal"
+      binary: "tmux"
+      version_check: "tmux -V"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "bash"
+      category: "shell"
+      binary: "bash"
+      version_check: "bash --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+    - name: "zsh"
+      category: "shell"
+      binary: "zsh"
+      version_check: "zsh --version"
+      requires_root: false
+      network_required: false
+      container_profile: "base"
+      security_risk: "low"
+      supported_agents: ["*"]
+
+  # Network tools
+  network:
+    - name: "nmap"
+      category: "network"
+      binary: "nmap"
+      version_check: "nmap --version"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "medium"
+      supported_agents: ["network", "web", "ad", "cloud"]
+
+    - name: "rustscan"
+      category: "network"
+      binary: "rustscan"
+      version_check: "rustscan -V"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "medium"
+      supported_agents: ["network", "web"]
+
+    - name: "masscan"
+      category: "network"
+      binary: "masscan"
+      version_check: "masscan --version"
+      requires_root: true
+      network_required: true
+      container_profile: "network"
+      security_risk: "high"
+      supported_agents: ["network"]
+
+    - name: "netcat"
+      category: "network"
+      binary: "nc"
+      version_check: "nc -h"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "medium"
+      supported_agents: ["network", "web", "pwn"]
+
+    - name: "socat"
+      category: "network"
+      binary: "socat"
+      version_check: "socat -V"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "medium"
+      supported_agents: ["network", "pwn"]
+
+    - name: "tcpdump"
+      category: "network"
+      binary: "tcpdump"
+      version_check: "tcpdump --version"
+      requires_root: true
+      network_required: true
+      container_profile: "network"
+      security_risk: "high"
+      supported_agents: ["network", "forensics"]
+
+    - name: "tshark"
+      category: "network"
+      binary: "tshark"
+      version_check: "tshark -v"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "medium"
+      supported_agents: ["network", "forensics"]
+
+    - name: "scapy"
+      category: "network"
+      binary: "python3"
+      version_check: "python3 -c 'import scapy; print(scapy.__version__)'"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "medium"
+      supported_agents: ["network", "forensics"]
+
+    - name: "dig"
+      category: "network"
+      binary: "dig"
+      version_check: "dig -v"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "low"
+      supported_agents: ["network", "osint", "web"]
+
+    - name: "host"
+      category: "network"
+      binary: "host"
+      version_check: "host -V"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "low"
+      supported_agents: ["network", "osint", "web"]
+
+    - name: "whois"
+      category: "network"
+      binary: "whois"
+      version_check: "whois --version"
+      requires_root: false
+      network_required: true
+      container_profile: "network"
+      security_risk: "low"
+      supported_agents: ["network", "osint"]
+
+  # Web tools
+  web:
+    - name: "ffuf"
+      category: "web"
+      binary: "ffuf"
+      version_check: "ffuf -V"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "medium"
+      supported_agents: ["web"]
+
+    - name: "feroxbuster"
+      category: "web"
+      binary: "feroxbuster"
+      version_check: "feroxbuster -V"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "medium"
+      supported_agents: ["web"]
+
+    - name: "gobuster"
+      category: "web"
+      binary: "gobuster"
+      version_check: "gobuster version"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "medium"
+      supported_agents: ["web"]
+
+    - name: "httpx"
+      category: "web"
+      binary: "httpx"
+      version_check: "httpx -version"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "low"
+      supported_agents: ["web", "network"]
+
+    - name: "nuclei"
+      category: "web"
+      binary: "nuclei"
+      version_check: "nuclei -version"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "medium"
+      supported_agents: ["web"]
+
+    - name: "katana"
+      category: "web"
+      binary: "katana"
+      version_check: "katana -version"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "medium"
+      supported_agents: ["web"]
+
+    - name: "hakrawler"
+      category: "web"
+      binary: "hakrawler"
+      version_check: "hakrawler -version"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "medium"
+      supported_agents: ["web"]
+
+    - name: "sqlmap"
+      category: "web"
+      binary: "sqlmap"
+      version_check: "sqlmap --version"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "high"
+      supported_agents: ["web"]
+
+    - name: "mitmproxy"
+      category: "web"
+      binary: "mitmproxy"
+      version_check: "mitmproxy --version"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "high"
+      supported_agents: ["web"]
+
+    - name: "dirsearch"
+      category: "web"
+      binary: "dirsearch"
+      version_check: "dirsearch -h"
+      requires_root: false
+      network_required: true
+      container_profile: "web"
+      security_risk: "medium"
+      supported_agents: ["web"]
+
+  # Pwn tools
+  pwn:
+    - name: "gdb"
+      category: "pwn"
+      binary: "gdb"
+      version_check: "gdb --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "medium"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "pwndbg"
+      category: "pwn"
+      binary: "gdb"
+      version_check: "gdb -ex 'source /opt/pwndbg/gdbinit.py' --batch -ex quit"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "medium"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "pwntools"
+      category: "pwn"
+      binary: "python3"
+      version_check: "python3 -c 'import pwnlib; print(pwnlib.__version__)'"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "medium"
+      supported_agents: ["pwn"]
+
+    - name: "checksec"
+      category: "pwn"
+      binary: "checksec"
+      version_check: "checksec --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "low"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "ROPgadget"
+      category: "pwn"
+      binary: "ROPgadget"
+      version_check: "ROPgadget --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "low"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "ropper"
+      category: "pwn"
+      binary: "ropper"
+      version_check: "ropper --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "low"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "patchelf"
+      category: "pwn"
+      binary: "patchelf"
+      version_check: "patchelf --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "medium"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "readelf"
+      category: "pwn"
+      binary: "readelf"
+      version_check: "readelf --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "low"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "objdump"
+      category: "pwn"
+      binary: "objdump"
+      version_check: "objdump --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "low"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "nm"
+      category: "pwn"
+      binary: "nm"
+      version_check: "nm --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "low"
+      supported_agents: ["pwn", "reverse"]
+
+    - name: "strace"
+      category: "pwn"
+      binary: "strace"
+      version_check: "strace -V"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "medium"
+      supported_agents: ["pwn", "reverse", "malware"]
+
+    - name: "ltrace"
+      category: "pwn"
+      binary: "ltrace"
+      version_check: "ltrace -V"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "medium"
+      supported_agents: ["pwn", "reverse", "malware"]
+
+    - name: "qemu"
+      category: "pwn"
+      binary: "qemu-system-x86_64"
+      version_check: "qemu-system-x86_64 --version"
+      requires_root: false
+      network_required: false
+      container_profile: "pwn"
+      security_risk: "medium"
+      supported_agents: ["pwn", "reverse", "firmware", "malware"]
+
+  # Reverse engineering tools
+  reverse:
+    - name: "ghidra"
+      category: "reverse"
+      binary: "ghidra"
+      version_check: "ghidra --version"
+      requires_root: false
+      network_required: false
+      container_profile: "reverse"
+      security_risk: "low"
+      supported_agents: ["reverse", "malware", "firmware"]
+
+    - name: "radare2"
+      category: "reverse"
+      binary: "r2"
+      version_check: "r2 -v"
+      requires_root: false
+      network_required: false
+      container_profile: "reverse"
+      security_risk: "low"
+      supported_agents: ["reverse", "malware", "firmware", "pwn"]
+
+    - name: "cutter"
+      category: "reverse"
+      binary: "cutter"
+      version_check: "cutter --version"
+      requires_root: false
+      network_required: false
+      container_profile: "reverse"
+      security_risk: "low"
+      supported_agents: ["reverse"]
+
+    - name: "angr"
+      category: "reverse"
+      binary: "python3"
+      version_check: "python3 -c 'import angr; print(angr.__version__)'"
+      requires_root: false
+      network_required: false
+      container_profile: "reverse"
+      security_risk: "medium"
+      supported_agents: ["reverse", "pwn"]
+
+    - name: "z3"
+      category: "reverse"
+      binary: "python3"
+      version_check: "python3 -c 'import z3; print(z3.get_version_string())'"
+      requires_root: false
+      network_required: false
+      container_profile: "reverse"
+      security_risk: "low"
+      supported_agents: ["reverse", "pwn", "crypto"]
+
+    - name: "gdb"
+      category: "reverse"
+      binary: "gdb"
+      version_check: "gdb --version"
+      requires_root: false
+      network_required: false
+      container_profile: "reverse"
+      security_risk: "medium"
+      supported_agents: ["reverse", "pwn"]
+
+    - name: "lldb"
+      category: "reverse"
+      binary: "lldb"
+      version_check: "lldb --version"
+      requires_root: false
+      network_required: false
+      container_profile: "reverse"
+      security_risk: "medium"
+      supported_agents: ["reverse"]
+
+  # Crypto tools
+  crypto:
+    - name: "openssl"
+      category: "crypto"
+      binary: "openssl"
+      version_check: "openssl version"
+      requires_root: false
+      network_required: false
+      container_profile: "crypto"
+      security_risk: "low"
+      supported_agents: ["crypto", "web", "reverse"]
+
+    - name: "hashcat"
+      category: "crypto"
+      binary: "hashcat"
+      version_check: "hashcat --version"
+      requires_root: false
+      network_required: false
+      container_profile: "crypto"
+      security_risk: "medium"
+      supported_agents: ["crypto", "forensics"]
+
+    - name: "john"
+      category: "crypto"
+      binary: "john"
+      version_check: "john --version"
+      requires_root: false
+      network_required: false
+      container_profile: "crypto"
+      security_risk: "medium"
+      supported_agents: ["crypto", "forensics"]
+
+    - name: "sage"
+      category: "crypto"
+      binary: "sage"
+      version_check: "sage --version"
+      requires_root: false
+      network_required: false
+      container_profile: "crypto"
+      security_risk: "low"
+      supported_agents: ["crypto"]
+
+    - name: "sympy"
+      category: "crypto"
+      binary: "python3"
+      version_check: "python3 -c 'import sympy; print(sympy.__version__)'"
+      requires_root: false
+      network_required: false
+      container_profile: "crypto"
+      security_risk: "low"
+      supported_agents: ["crypto"]
+
+    - name: "gmpy2"
+      category: "crypto"
+      binary: "python3"
+      version_check: "python3 -c 'import gmpy2; print(gmpy2.__version__)'"
+      requires_root: false
+      network_required: false
+      container_profile: "crypto"
+      security_risk: "low"
+      supported_agents: ["crypto"]
+
+    - name: "z3"
+      category: "crypto"
+      binary: "python3"
+      version_check: "python3 -c 'import z3; print(z3.get_version_string())'"
+      requires_root: false
+      network_required: false
+      container_profile: "crypto"
+      security_risk: "low"
+      supported_agents: ["crypto", "reverse", "pwn"]
+
+  # Forensics tools
+  forensics:
+    - name: "volatility3"
+      category: "forensics"
+      binary: "python3"
+      version_check: "python3 -c 'import volatility3; print(volatility3.__version__)'"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics", "malware"]
+
+    - name: "sleuthkit"
+      category: "forensics"
+      binary: "fls"
+      version_check: "fls -V"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics"]
+
+    - name: "autopsy"
+      category: "forensics"
+      binary: "autopsy"
+      version_check: "autopsy --version"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics"]
+
+    - name: "binwalk"
+      category: "forensics"
+      binary: "binwalk"
+      version_check: "binwalk --version"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics", "firmware", "stego", "malware"]
+
+    - name: "foremost"
+      category: "forensics"
+      binary: "foremost"
+      version_check: "foremost -V"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics"]
+
+    - name: "scalpel"
+      category: "forensics"
+      binary: "scalpel"
+      version_check: "scalpel -V"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics"]
+
+    - name: "exiftool"
+      category: "forensics"
+      binary: "exiftool"
+      version_check: "exiftool -ver"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics", "stego"]
+
+    - name: "yara"
+      category: "forensics"
+      binary: "yara"
+      version_check: "yara --version"
+      requires_root: false
+      network_required: false
+      container_profile: "forensics"
+      security_risk: "low"
+      supported_agents: ["forensics", "malware"]
+
+  # Stego tools
+  stego:
+    - name: "steghide"
+      category: "stego"
+      binary: "steghide"
+      version_check: "steghide --version"
+      requires_root: false
+      network_required: false
+      container_profile: "stego"
+      security_risk: "low"
+      supported_agents: ["stego"]
+
+    - name: "stegseek"
+      category: "stego"
+      binary: "stegseek"
+      version_check: "stegseek --version"
+      requires_root: false
+      network_required: false
+      container_profile: "stego"
+      security_risk: "low"
+      supported_agents: ["stego"]
+
+    - name: "zsteg"
+      category: "stego"
+      binary: "zsteg"
+      version_check: "zsteg -v"
+      requires_root: false
+      network_required: false
+      container_profile: "stego"
+      security_risk: "low"
+      supported_agents: ["stego"]
+
+    - name: "pngcheck"
+      category: "stego"
+      binary: "pngcheck"
+      version_check: "pngcheck -v"
+      requires_root: false
+      network_required: false
+      container_profile: "stego"
+      security_risk: "low"
+      supported_agents: ["stego"]
+
+    - name: "ffmpeg"
+      category: "stego"
+      binary: "ffmpeg"
+      version_check: "ffmpeg -version"
+      requires_root: false
+      network_required: false
+      container_profile: "stego"
+      security_risk: "low"
+      supported_agents: ["stego", "forensics"]
+
+    - name: "imagemagick"
+      category: "stego"
+      binary: "convert"
+      version_check: "convert -version"
+      requires_root: false
+      network_required: false
+      container_profile: "stego"
+      security_risk: "low"
+      supported_agents: ["stego", "forensics"]
+
+  # Mobile tools
+  mobile:
+    - name: "adb"
+      category: "mobile"
+      binary: "adb"
+      version_check: "adb version"
+      requires_root: false
+      network_required: true
+      container_profile: "mobile"
+      security_risk: "medium"
+      supported_agents: ["mobile"]
+
+    - name: "apktool"
+      category: "mobile"
+      binary: "apktool"
+      version_check: "apktool --version"
+      requires_root: false
+      network_required: false
+      container_profile: "mobile"
+      security_risk: "low"
+      supported_agents: ["mobile"]
+
+    - name: "jadx"
+      category: "mobile"
+      binary: "jadx"
+      version_check: "jadx --version"
+      requires_root: false
+      network_required: false
+      container_profile: "mobile"
+      security_risk: "low"
+      supported_agents: ["mobile"]
+
+    - name: "apksigner"
+      category: "mobile"
+      binary: "apksigner"
+      version_check: "apksigner version"
+      requires_root: false
+      network_required: false
+      container_profile: "mobile"
+      security_risk: "low"
+      supported_agents: ["mobile"]
+
+    - name: "zipalign"
+      category: "mobile"
+      binary: "zipalign"
+      version_check: "zipalign -v"
+      requires_root: false
+      network_required: false
+      container_profile: "mobile"
+      security_risk: "low"
+      supported_agents: ["mobile"]
+
+    - name: "frida"
+      category: "mobile"
+      binary: "frida"
+      version_check: "frida --version"
+      requires_root: false
+      network_required: true
+      container_profile: "mobile"
+      security_risk: "high"
+      supported_agents: ["mobile"]
+
+    - name: "objection"
+      category: "mobile"
+      binary: "objection"
+      version_check: "objection --version"
+      requires_root: false
+      network_required: true
+      container_profile: "mobile"
+      security_risk: "high"
+      supported_agents: ["mobile"]
+
+  # Malware tools
+  malware:
+    - name: "yara"
+      category: "malware"
+      binary: "yara"
+      version_check: "yara --version"
+      requires_root: false
+      network_required: false
+      container_profile: "malware"
+      security_risk: "low"
+      supported_agents: ["malware", "forensics"]
+
+    - name: "capa"
+      category: "malware"
+      binary: "capa"
+      version_check: "capa --version"
+      requires_root: false
+      network_required: false
+      container_profile: "malware"
+      security_risk: "low"
+      supported_agents: ["malware", "reverse"]
+
+    - name: "ghidra"
+      category: "malware"
+      binary: "ghidra"
+      version_check: "ghidra --version"
+      requires_root: false
+      network_required: false
+      container_profile: "malware"
+      security_risk: "low"
+      supported_agents: ["malware", "reverse", "firmware"]
+
+    - name: "radare2"
+      category: "malware"
+      binary: "r2"
+      version_check: "r2 -v"
+      requires_root: false
+      network_required: false
+      container_profile: "malware"
+      security_risk: "low"
+      supported_agents: ["malware", "reverse", "firmware"]
+
+    - name: "qemu"
+      category: "malware"
+      binary: "qemu-system-x86_64"
+      version_check: "qemu-system-x86_64 --version"
+      requires_root: false
+      network_required: false
+      container_profile: "malware"
+      security_risk: "medium"
+      supported_agents: ["malware", "pwn", "reverse", "firmware"]
+
+    - name: "strace"
+      category: "malware"
+      binary: "strace"
+      version_check: "strace -V"
+      requires_root: false
+      network_required: false
+      container_profile: "malware"
+      security_risk: "medium"
+      supported_agents: ["malware", "pwn", "reverse"]
+
+    - name: "ltrace"
+      category: "malware"
+      binary: "ltrace"
+      version_check: "ltrace -V"
+      requires_root: false
+      network_required: false
+      container_profile: "malware"
+      security_risk: "medium"
+      supported_agents: ["malware", "pwn", "reverse"]
+
+  # Cloud tools
+  cloud:
+    - name: "awscli"
+      category: "cloud"
+      binary: "aws"
+      version_check: "aws --version"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud"]
+
+    - name: "azure-cli"
+      category: "cloud"
+      binary: "az"
+      version_check: "az --version"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud"]
+
+    - name: "gcloud"
+      category: "cloud"
+      binary: "gcloud"
+      version_check: "gcloud --version"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud"]
+
+    - name: "kubectl"
+      category: "cloud"
+      binary: "kubectl"
+      version_check: "kubectl version --client"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud"]
+
+    - name: "helm"
+      category: "cloud"
+      binary: "helm"
+      version_check: "helm version"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud"]
+
+    - name: "trivy"
+      category: "cloud"
+      binary: "trivy"
+      version_check: "trivy version"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud", "supply_chain"]
+
+    - name: "syft"
+      category: "cloud"
+      binary: "syft"
+      version_check: "syft version"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud", "supply_chain"]
+
+    - name: "grype"
+      category: "cloud"
+      binary: "grype"
+      version_check: "grype version"
+      requires_root: false
+      network_required: true
+      container_profile: "cloud"
+      security_risk: "medium"
+      supported_agents: ["cloud", "supply_chain"]
+
+  # AD tools
+  ad:
+    - name: "impacket"
+      category: "ad"
+      binary: "python3"
+      version_check: "python3 -c 'import impacket; print(impacket.__version__)'"
+      requires_root: false
+      network_required: true
+      container_profile: "ad"
+      security_risk: "high"
+      supported_agents: ["ad"]
+
+    - name: "ldap-utils"
+      category: "ad"
+      binary: "ldapsearch"
+      version_check: "ldapsearch -V"
+      requires_root: false
+      network_required: true
+      container_profile: "ad"
+      security_risk: "medium"
+      supported_agents: ["ad"]
+
+    - name: "smbclient"
+      category: "ad"
+      binary: "smbclient"
+      version_check: "smbclient --version"
+      requires_root: false
+      network_required: true
+      container_profile: "ad"
+      security_risk: "medium"
+      supported_agents: ["ad"]
+
+    - name: "rpcclient"
+      category: "ad"
+      binary: "rpcclient"
+      version_check: "rpcclient --version"
+      requires_root: false
+      network_required: true
+      container_profile: "ad"
+      security_risk: "medium"
+      supported_agents: ["ad"]
+
+    - name: "kerbrute"
+      category: "ad"
+      binary: "kerbrute"
+      version_check: "kerbrute version"
+      requires_root: false
+      network_required: true
+      container_profile: "ad"
+      security_risk: "high"
+      supported_agents: ["ad"]
+
+    - name: "netexec"
+      category: "ad"
+      binary: "nxc"
+      version_check: "nxc --version"
+      requires_root: false
+      network_required: true
+      container_profile: "ad"
+      security_risk: "high"
+      supported_agents: ["ad"]
+
+  # Web3 tools
+  web3:
+    - name: "foundry"
+      category: "web3"
+      binary: "forge"
+      version_check: "forge --version"
+      requires_root: false
+      network_required: false
+      container_profile: "web3"
+      security_risk: "medium"
+      supported_agents: ["web3"]
+
+    - name: "solc"
+      category: "web3"
+      binary: "solc"
+      version_check: "solc --version"
+      requires_root: false
+      network_required: false
+      container_profile: "web3"
+      security_risk: "low"
+      supported_agents: ["web3"]
+
+    - name: "cast"
+      category: "web3"
+      binary: "cast"
+      version_check: "cast --version"
+      requires_root: false
+      network_required: true
+      container_profile: "web3"
+      security_risk: "medium"
+      supported_agents: ["web3"]
+
+    - name: "anvil"
+      category: "web3"
+      binary: "anvil"
+      version_check: "anvil --version"
+      requires_root: false
+      network_required: true
+      container_profile: "web3"
+      security_risk: "medium"
+      supported_agents: ["web3"]
+
+    - name: "slither"
+      category: "web3"
+      binary: "slither"
+      version_check: "slither --version"
+      requires_root: false
+      network_required: false
+      container_profile: "web3"
+      security_risk: "medium"
+      supported_agents: ["web3"]
+
+    - name: "mythril"
+      category: "web3"
+      binary: "mythril"
+      version_check: "mythril --version"
+      requires_root: false
+      network_required: false
+      container_profile: "web3"
+      security_risk: "medium"
+      supported_agents: ["web3"]
+
+  # Firmware tools
+  firmware:
+    - name: "binwalk"
+      category: "firmware"
+      binary: "binwalk"
+      version_check: "binwalk --version"
+      requires_root: false
+      network_required: false
+      container_profile: "firmware"
+      security_risk: "low"
+      supported_agents: ["firmware", "forensics", "reverse"]
+
+    - name: "qemu"
+      category: "firmware"
+      binary: "qemu-system-x86_64"
+      version_check: "qemu-system-x86_64 --version"
+      requires_root: false
+      network_required: false
+      container_profile: "firmware"
+      security_risk: "medium"
+      supported_agents: ["firmware", "pwn", "reverse", "malware"]
+
+    - name: "squashfs-tools"
+      category: "firmware"
+      binary: "unsquashfs"
+      version_check: "unsquashfs -v"
+      requires_root: false
+      network_required: false
+      container_profile: "firmware"
+      security_risk: "low"
+      supported_agents: ["firmware"]
+
+    - name: "cpio"
+      category: "firmware"
+      binary: "cpio"
+      version_check: "cpio --version"
+      requires_root: false
+      network_required: false
+      container_profile: "firmware"
+      security_risk: "low"
+      supported_agents: ["firmware"]
+
+    - name: "dtc"
+      category: "firmware"
+      binary: "dtc"
+      version_check: "dtc --version"
+      requires_root: false
+      network_required: false
+      container_profile: "firmware"
+      security_risk: "low"
+      supported_agents: ["firmware"]
+
+    - name: "u-boot-tools"
+      category: "firmware"
+      binary: "mkimage"
+      version_check: "mkimage -V"
+      requires_root: false
+      network_required: false
+      container_profile: "firmware"
+      security_risk: "low"
+      supported_agents: ["firmware"]

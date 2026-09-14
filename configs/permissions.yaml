@@ -1,0 +1,270 @@
+# Permission Manager Configuration
+
+permissions:
+  # Default deny policy
+  default_policy: "deny"
+
+  # Capability definitions
+  capabilities:
+    INSTALL_PACKAGE:
+      description: "Install system package via apt/apk/pip"
+      risk: "medium"
+      allowed_agents: ["orchestrator", "programming"]
+      requires_approval: true
+      parameters:
+        package_name:
+          type: "string"
+          pattern: "^[a-zA-Z0-9._+-]+$"
+        package_manager:
+          type: "string"
+          enum: ["apt", "apk", "pip", "pipx", "uv", "cargo", "go"]
+        version:
+          type: "string"
+          optional: true
+
+    CREATE_RESTRICTED_MOUNT:
+      description: "Create a restricted bind mount"
+      risk: "high"
+      allowed_agents: ["orchestrator"]
+      requires_approval: true
+      parameters:
+        source:
+          type: "string"
+          pattern: "^/(workspace|artifacts|logs)/"
+        target:
+          type: "string"
+          pattern: "^/(workspace|artifacts|logs|tmp)/"
+        readonly:
+          type: "boolean"
+          default: true
+
+    CONFIGURE_ISOLATED_NETWORK:
+      description: "Configure isolated network namespace"
+      risk: "high"
+      allowed_agents: ["orchestrator"]
+      requires_approval: true
+      parameters:
+        network_name:
+          type: "string"
+          pattern: "^ctf_[a-z_]+$"
+        subnet:
+          type: "string"
+          pattern: "^10\\.[0-9]+\\.[0-9]+\\.0/24$"
+        gateway:
+          type: "string"
+          optional: true
+
+    SET_REQUIRED_DEVICE_PERMISSION:
+      description: "Grant specific device access"
+      risk: "high"
+      allowed_agents: ["orchestrator"]
+      requires_approval: true
+      parameters:
+        device_path:
+          type: "string"
+          pattern: "^/dev/"
+        mode:
+          type: "string"
+          enum: ["r", "w", "rw"]
+        container:
+          type: "string"
+
+    PERFORM_CONTROLLED_PRIVILEGED_OPERATION:
+      description: "Execute a specific privileged operation"
+      risk: "critical"
+      allowed_agents: ["orchestrator"]
+      requires_approval: true
+      parameters:
+        operation:
+          type: "string"
+          enum: [
+            "tcpdump_capture",
+            "raw_socket",
+            "namespace_enter",
+            "module_load",
+            "sysctl_modify"
+          ]
+        target:
+          type: "string"
+        duration_seconds:
+          type: "integer"
+          maximum: 3600
+
+    MANAGE_CONTAINER_LIFECYCLE:
+      description: "Start/stop/restart containers"
+      risk: "high"
+      allowed_agents: ["orchestrator"]
+      requires_approval: false
+      parameters:
+        action:
+          type: "string"
+          enum: ["start", "stop", "restart", "remove"]
+        container_name:
+          type: "string"
+          pattern: "^ctf_[a-z0-9_-]+$"
+
+    READ_AUDIT_LOGS:
+      description: "Read audit log entries"
+      risk: "low"
+      allowed_agents: ["orchestrator", "meta"]
+      requires_approval: false
+      parameters:
+        limit:
+          type: "integer"
+          maximum: 1000
+        filter:
+          type: "object"
+          optional: true
+
+  # Agent-specific permissions
+  agent_permissions:
+    orchestrator:
+      - "INSTALL_PACKAGE"
+      - "CREATE_RESTRICTED_MOUNT"
+      - "CONFIGURE_ISOLATED_NETWORK"
+      - "SET_REQUIRED_DEVICE_PERMISSION"
+      - "PERFORM_CONTROLLED_PRIVILEGED_OPERATION"
+      - "MANAGE_CONTAINER_LIFECYCLE"
+      - "READ_AUDIT_LOGS"
+
+    web:
+      - "INSTALL_PACKAGE"
+
+    crypto:
+      - "INSTALL_PACKAGE"
+
+    pwn:
+      - "INSTALL_PACKAGE"
+
+    reverse:
+      - "INSTALL_PACKAGE"
+
+    forensics:
+      - "INSTALL_PACKAGE"
+
+    osint:
+      - "INSTALL_PACKAGE"
+
+    stego:
+      - "INSTALL_PACKAGE"
+
+    mobile:
+      - "INSTALL_PACKAGE"
+
+    malware:
+      - "INSTALL_PACKAGE"
+
+    cloud:
+      - "INSTALL_PACKAGE"
+
+    network:
+      - "INSTALL_PACKAGE"
+      - "PERFORM_CONTROLLED_PRIVILEGED_OPERATION"
+
+    supply_chain:
+      - "INSTALL_PACKAGE"
+
+    ad:
+      - "INSTALL_PACKAGE"
+
+    web3:
+      - "INSTALL_PACKAGE"
+
+    ai_security:
+      - "INSTALL_PACKAGE"
+
+    sidechannel:
+      - "INSTALL_PACKAGE"
+
+    firmware:
+      - "INSTALL_PACKAGE"
+
+    social:
+      - "INSTALL_PACKAGE"
+
+    programming:
+      - "INSTALL_PACKAGE"
+
+    meta:
+      - "READ_AUDIT_LOGS"
+
+  # Network access policies
+  network_policies:
+    ctf_control:
+      description: "Internal control plane network"
+      allowed_agents: ["orchestrator", "permission-manager"]
+      default: true
+
+    ctf_workspace:
+      description: "Shared workspace network"
+      allowed_agents: ["*"]
+      default: true
+
+    ctf_targets:
+      description: "Target/CTF infrastructure network"
+      allowed_agents: ["web", "pwn", "network", "ad", "cloud", "orchestrator"]
+      default: false
+
+    ctf_malware:
+      description: "Isolated malware analysis network"
+      allowed_agents: ["malware", "forensics"]
+      default: false
+      no_internet: true
+
+    ctf_attack_defense:
+      description: "Attack/Defense exercise network"
+      allowed_agents: ["ad", "orchestrator"]
+      default: false
+
+  # Filesystem access policies
+  filesystem_policies:
+    workspace:
+      path: "/workspace"
+      read_agents: ["*"]
+      write_agents: ["*"]
+
+    artifacts:
+      path: "/artifacts"
+      read_agents: ["*"]
+      write_agents: ["*"]
+
+    logs:
+      path: "/logs"
+      read_agents: ["orchestrator", "meta", "permission-manager"]
+      write_agents: ["*"]
+
+    challenge:
+      path: "/challenge"
+      read_agents: ["*"]
+      write_agents: []
+
+    tmp:
+      path: "/tmp"
+      read_agents: ["*"]
+      write_agents: ["*"]
+
+  # Tool installation policies
+  installation_policies:
+    allowed_sources:
+      - "apt"
+      - "apk"
+      - "pip"
+      - "pipx"
+      - "uv"
+      - "cargo"
+      - "go"
+      - "github_releases"
+      - "custom_scripts"
+
+    blocked_packages:
+      - "docker.io"
+      - "docker-ce"
+      - "podman"
+      - "containerd"
+      - "runc"
+      - "kubernetes*"
+      - "kubeadm"
+      - "kubelet"
+
+    max_install_time: 300
+    max_package_size_mb: 500

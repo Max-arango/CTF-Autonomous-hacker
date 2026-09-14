@@ -1,0 +1,534 @@
+# Agent configurations
+
+agents:
+  # Base configuration for all agents
+  base:
+    llm_provider: "nemotron"
+    temperature: 0.1
+    max_tokens: 4096
+    system_prompt_template: "base"
+    allowed_tools: []
+    allowed_networks: ["ctf_workspace"]
+    cpu_limit: "1.0"
+    memory_limit: "2g"
+    pids_limit: 100
+
+  # Orchestrator agent
+  orchestrator:
+    role: "orchestrator"
+    description: "Central coordination engine for challenge solving"
+    capabilities:
+      - "challenge_intake"
+      - "challenge_classification"
+      - "task_decomposition"
+      - "agent_selection"
+      - "parallel_scheduling"
+      - "resource_allocation"
+      - "result_aggregation"
+      - "contradiction_detection"
+      - "exploitation_coordination"
+      - "final_validation"
+    allowed_tools:
+      - "challenge_triage"
+      - "agent_spawn"
+      - "memory_query"
+      - "evidence_submit"
+      - "experiment_create"
+      - "report_generate"
+
+  # Web exploitation agent
+  web:
+    role: "web"
+    description: "Web application security testing and exploitation"
+    capabilities:
+      - "http_reconnaissance"
+      - "api_analysis"
+      - "injection_testing"
+      - "authentication_analysis"
+      - "client_side_analysis"
+      - "ssrf_testing"
+      - "xxe_testing"
+      - "ssti_testing"
+    allowed_tools:
+      - "ffuf"
+      - "feroxbuster"
+      - "gobuster"
+      - "httpx"
+      - "nuclei"
+      - "katana"
+      - "hakrawler"
+      - "sqlmap"
+      - "curl"
+      - "mitmproxy"
+      - "dirsearch"
+    allowed_networks:
+      - "ctf_workspace"
+      - "ctf_targets"
+
+  # Cryptography agent
+  crypto:
+    role: "crypto"
+    description: "Cryptographic analysis and exploitation"
+    capabilities:
+      - "cipher_identification"
+      - "weak_crypto_detection"
+      - "side_channel_analysis"
+      - "protocol_analysis"
+      - "hash_cracking"
+      - "rsa_analysis"
+      - "ecc_analysis"
+      - "symmetric_analysis"
+    allowed_tools:
+      - "openssl"
+      - "hashcat"
+      - "john"
+      - "sage"
+      - "sympy"
+      - "gmpy2"
+      - "z3"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Binary exploitation / Pwn agent
+  pwn:
+    role: "pwn"
+    description: "Binary exploitation and memory corruption"
+    capabilities:
+      - "binary_triage"
+      - "memory_corruption_analysis"
+      - "protection_analysis"
+      - "libc_analysis"
+      - "exploit_construction"
+      - "rop_chain_generation"
+      - "heap_exploitation"
+      - "format_string_exploitation"
+    allowed_tools:
+      - "gdb"
+      - "pwndbg"
+      - "pwntools"
+      - "checksec"
+      - "ROPgadget"
+      - "ropper"
+      - "patchelf"
+      - "readelf"
+      - "objdump"
+      - "nm"
+      - "strace"
+      - "ltrace"
+      - "qemu"
+    allowed_networks:
+      - "ctf_workspace"
+      - "ctf_targets"
+
+  # Reverse engineering agent
+  reverse:
+    role: "reverse"
+    description: "Reverse engineering and binary analysis"
+    capabilities:
+      - "static_analysis"
+      - "dynamic_analysis"
+      - "decompilation"
+      - "control_flow_analysis"
+      - "data_flow_analysis"
+      - "anti_reversing_detection"
+      - "vm_analysis"
+      - "obfuscation_analysis"
+    allowed_tools:
+      - "ghidra"
+      - "radare2"
+      - "cutter"
+      - "angr"
+      - "z3"
+      - "gdb"
+      - "lldb"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Forensics agent
+  forensics:
+    role: "forensics"
+    description: "Digital forensics and artifact analysis"
+    capabilities:
+      - "disk_image_analysis"
+      - "memory_analysis"
+      - "file_system_analysis"
+      - "artifact_extraction"
+      - "timeline_reconstruction"
+      - "malware_artifact_analysis"
+      - "network_forensics"
+      - "mobile_forensics"
+    allowed_tools:
+      - "volatility3"
+      - "sleuthkit"
+      - "autopsy"
+      - "binwalk"
+      - "foremost"
+      - "scalpel"
+      - "exiftool"
+      - "yara"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # OSINT agent
+  osint:
+    role: "osint"
+    description: "Open source intelligence gathering"
+    capabilities:
+      - "domain_reconnaissance"
+      - "ip_reconnaissance"
+      - "email_reconnaissance"
+      - "social_media_analysis"
+      - "credential_leak_search"
+      - "infrastructure_mapping"
+      - "certificate_transparency"
+      - "dns_analysis"
+    allowed_tools:
+      - "dig"
+      - "host"
+      - "whois"
+      - "curl"
+      - "python"
+      - "nmap"
+      - "rustscan"
+    allowed_networks:
+      - "ctf_workspace"
+      - "ctf_targets"
+
+  # Steganography agent
+  stego:
+    role: "stego"
+    description: "Steganography detection and extraction"
+    capabilities:
+      - "image_analysis"
+      - "audio_analysis"
+      - "video_analysis"
+      - "file_format_analysis"
+      - "lsb_analysis"
+      - "frequency_analysis"
+      - "payload_extraction"
+      - "tool_automation"
+    allowed_tools:
+      - "steghide"
+      - "stegseek"
+      - "zsteg"
+      - "pngcheck"
+      - "ffmpeg"
+      - "imagemagick"
+      - "python"
+      - "binwalk"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Mobile security agent
+  mobile:
+    role: "mobile"
+    description: "Mobile application security testing"
+    capabilities:
+      - "android_static_analysis"
+      - "android_dynamic_analysis"
+      - "ios_static_analysis"
+      - "ios_dynamic_analysis"
+      - "frida_instrumentation"
+      - "objection_automation"
+      - "certificate_pinning_bypass"
+      - "root_detection_bypass"
+    allowed_tools:
+      - "adb"
+      - "apktool"
+      - "jadx"
+      - "apksigner"
+      - "zipalign"
+      - "frida"
+      - "objection"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Malware analysis agent
+  malware:
+    role: "malware"
+    description: "Malware analysis and reverse engineering"
+    capabilities:
+      - "static_malware_analysis"
+      - "dynamic_malware_analysis"
+      - "behavioral_analysis"
+      - "c2_analysis"
+      - "payload_extraction"
+      - "anti_analysis_detection"
+      - "yara_rule_matching"
+      - "similarity_analysis"
+    allowed_tools:
+      - "yara"
+      - "capa"
+      - "ghidra"
+      - "radare2"
+      - "qemu"
+      - "strace"
+      - "ltrace"
+      - "python"
+    allowed_networks:
+      - "ctf_malware"
+
+  # Cloud security agent
+  cloud:
+    role: "cloud"
+    description: "Cloud infrastructure security testing"
+    capabilities:
+      - "aws_reconnaissance"
+      - "azure_reconnaissance"
+      - "gcp_reconnaissance"
+      - "kubernetes_analysis"
+      - "container_analysis"
+      - "iam_analysis"
+      - "serverless_analysis"
+      - "supply_chain_analysis"
+    allowed_tools:
+      - "awscli"
+      - "azure-cli"
+      - "gcloud"
+      - "kubectl"
+      - "helm"
+      - "trivy"
+      - "syft"
+      - "grype"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+      - "ctf_targets"
+
+  # Network security agent
+  network:
+    role: "network"
+    description: "Network security testing and analysis"
+    capabilities:
+      - "port_scanning"
+      - "service_enumeration"
+      - "vulnerability_scanning"
+      - "protocol_analysis"
+      - "traffic_analysis"
+      - "wireless_analysis"
+      - "vpn_analysis"
+      - "firewall_analysis"
+    allowed_tools:
+      - "nmap"
+      - "rustscan"
+      - "masscan"
+      - "netcat"
+      - "socat"
+      - "tcpdump"
+      - "tshark"
+      - "scapy"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+      - "ctf_targets"
+
+  # Supply chain security agent
+  supply_chain:
+    role: "supply_chain"
+    description: "Software supply chain security analysis"
+    capabilities:
+      - "dependency_analysis"
+      - "sbom_generation"
+      - "vulnerability_scanning"
+      - "license_analysis"
+      - "typosquatting_detection"
+      - "build_analysis"
+      - "registry_analysis"
+      - "pipeline_analysis"
+    allowed_tools:
+      - "syft"
+      - "grype"
+      - "trivy"
+      - "python"
+      - "curl"
+      - "jq"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Active Directory / Enterprise agent
+  ad:
+    role: "ad"
+    description: "Active Directory and enterprise security testing"
+    capabilities:
+      - "domain_reconnaissance"
+      - "user_enumeration"
+      - "group_policy_analysis"
+      - "kerberos_analysis"
+      - "ldap_analysis"
+      - "smb_analysis"
+      - "privilege_escalation"
+      - "lateral_movement"
+      - "persistence_analysis"
+    allowed_tools:
+      - "impacket"
+      - "ldap-utils"
+      - "smbclient"
+      - "rpcclient"
+      - "kerbrute"
+      - "netexec"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+      - "ctf_targets"
+      - "ctf_attack_defense"
+
+  # Blockchain / Web3 agent
+  web3:
+    role: "web3"
+    description: "Blockchain and smart contract security"
+    capabilities:
+      - "solidity_analysis"
+      - "smart_contract_audit"
+      - "defi_protocol_analysis"
+      - "token_analysis"
+      - "governance_analysis"
+      - "mev_analysis"
+      - "cross_chain_analysis"
+      - "zk_circuit_analysis"
+    allowed_tools:
+      - "foundry"
+      - "solc"
+      - "cast"
+      - "anvil"
+      - "slither"
+      - "mythril"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # AI/ML security agent
+  ai_security:
+    role: "ai_security"
+    description: "AI/ML model and system security testing"
+    capabilities:
+      - "model_extraction"
+      - "adversarial_examples"
+      - "data_poisoning"
+      - "membership_inference"
+      - "model_inversion"
+      - "prompt_injection"
+      - "jailbreak_testing"
+      - "supply_chain_analysis"
+    allowed_tools:
+      - "python"
+      - "pytorch"
+      - "tensorflow"
+      - "numpy"
+      - "scikit-learn"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Side-channel / Timing agent
+  sidechannel:
+    role: "sidechannel"
+    description: "Side-channel and timing attack analysis"
+    capabilities:
+      - "timing_analysis"
+      - "power_analysis"
+      - "cache_analysis"
+      - "branch_prediction_analysis"
+      - "speculative_execution"
+      - "constant_time_verification"
+      - "statistical_analysis"
+      - "trace_collection"
+    allowed_tools:
+      - "python"
+      - "numpy"
+      - "scipy"
+      - "perf"
+      - "gdb"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Firmware agent
+  firmware:
+    role: "firmware"
+    description: "Firmware and embedded systems analysis"
+    capabilities:
+      - "firmware_extraction"
+      - "filesystem_analysis"
+      - "bootloader_analysis"
+      - "hardware_interface_analysis"
+      - "emulation"
+      - "vulnerability_research"
+      - "rootkit_detection"
+      - "secure_boot_analysis"
+    allowed_tools:
+      - "binwalk"
+      - "qemu"
+      - "squashfs-tools"
+      - "cpio"
+      - "dtc"
+      - "u-boot-tools"
+      - "ghidra"
+      - "radare2"
+      - "python"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Social engineering agent
+  social:
+    role: "social"
+    description: "Social engineering simulation and analysis"
+    capabilities:
+      - "phishing_campaign_design"
+      - "pretext_development"
+      - "osint_integration"
+      - "credential_harvesting_simulation"
+      - "physical_security_analysis"
+      - "vishing_simulation"
+      - "smishing_simulation"
+      - "awareness_training"
+    allowed_tools:
+      - "python"
+      - "curl"
+      - "msfconsole"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # Programming / General agent
+  programming:
+    role: "programming"
+    description: "General programming and automation"
+    capabilities:
+      - "script_development"
+      - "tool_automation"
+      - "data_processing"
+      - "api_integration"
+      - "exploit_development"
+      - "poc_development"
+      - "report_generation"
+      - "utility_development"
+    allowed_tools:
+      - "python"
+      - "bash"
+      - "git"
+      - "curl"
+      - "jq"
+      - "yq"
+    allowed_networks:
+      - "ctf_workspace"
+
+  # CTF-specific / Meta agent
+  meta:
+    role: "meta"
+    description: "CTF-specific strategies and meta-gaming"
+    capabilities:
+      - "flag_format_analysis"
+      - "challenge_pattern_recognition"
+      - "infrastructure_analysis"
+      - "scoreboard_analysis"
+      - "time_management"
+      - "team_coordination"
+      - "writeup_generation"
+      - "lesson_extraction"
+    allowed_tools:
+      - "python"
+      - "curl"
+      - "git"
+    allowed_networks:
+      - "ctf_workspace"

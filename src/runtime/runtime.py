@@ -67,8 +67,9 @@ class AgentRuntime:
         resource_budget: Optional[ResourceBudget] = None,
         timeout_seconds: Optional[int] = None,
         token_budget: Optional[int] = None,
+        challenge_id: Optional[str] = None,
     ) -> Agent:
-        """Create a new agent."""
+        """Create a new agent with explicit identity."""
         async with self._lock:
             if len(self._active_agents) >= self.max_active_agents:
                 raise RuntimeError(f"Max active agents ({self.max_active_agents}) reached")
@@ -79,8 +80,32 @@ class AgentRuntime:
                 if depth > self.max_depth:
                     raise RuntimeError(f"Max agent depth ({self.max_depth}) exceeded")
 
+            # Get challenge_id from parent or parameter
+            agent_challenge_id = challenge_id
+            if not agent_challenge_id and parent_agent:
+                agent_challenge_id = parent_agent.config.metadata.get("challenge_id")
+
+            # Create explicit agent identity (NEVER derive from agent_id)
+            identity_manager = get_identity_manager()
+            agent_id = str(uuid.uuid4())
+            
+            # Determine identity type
+            from .identity import IdentityType
+            identity_type = IdentityType.ORCHESTRATOR if role == "orchestrator" else IdentityType.SPECIALIST
+            if parent_agent:
+                identity_type = IdentityType.SUB_AGENT
+            
+            identity = identity_manager.create_identity(
+                agent_id=agent_id,
+                role=role,
+                challenge_id=agent_challenge_id or "unknown",
+                parent_id=parent_agent.config.id if parent_agent else None,
+                capabilities=capabilities or [],
+                identity_type=identity_type,
+            )
+
             config = AgentConfig(
-                id=str(uuid.uuid4()),
+                id=agent_id,
                 role=role,
                 name=name,
                 parent_id=parent_agent.config.id if parent_agent else None,
@@ -96,6 +121,8 @@ class AgentRuntime:
                 ),
                 timeout_seconds=timeout_seconds or self.default_timeout,
                 token_budget=token_budget or self.default_timeout * 100,
+                identity_id=identity.agent_id,  # Link to explicit identity
+                metadata={"challenge_id": agent_challenge_id},
             )
 
             agent = Agent(config=config)
@@ -399,21 +426,20 @@ Follow these principles:
     def _get_tool_definitions(self, allowed_tools: List[str]) -> List[Dict[str, Any]]:
         """Get tool definitions for LLM function calling."""
         # This would be populated from the tool registry
-        # For now, return basic definitions
+        # For now, return Python sandbox as the safe execution method
         tool_defs = {
-            "execute_command": {
+            "execute_python_sandbox": {
                 "type": "function",
                 "function": {
-                    "name": "execute_command",
-                    "description": "Execute a shell command",
+                    "name": "execute_python_sandbox",
+                    "description": "Execute Python code in a sandboxed environment with resource limits. No host access, no unrestricted networking.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "command": {"type": "string", "description": "Command to execute"},
+                            "script": {"type": "string", "description": "Python script to execute"},
                             "timeout": {"type": "integer", "description": "Timeout in seconds"},
-                            "working_dir": {"type": "string", "description": "Working directory"},
                         },
-                        "required": ["command"],
+                        "required": ["script"],
                     },
                 },
             },

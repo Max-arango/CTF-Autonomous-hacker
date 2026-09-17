@@ -138,7 +138,7 @@ def create_app() -> FastAPI:
     async def cancel_agent(agent_id: str):
         runtime = await get_agent_runtime()
         await runtime.cancel_agent(agent_id)
-        return {"success": True}
+        return {"cancelled": True, "agent_id": agent_id}
 
     @app.get("/agents")
     async def list_agents():

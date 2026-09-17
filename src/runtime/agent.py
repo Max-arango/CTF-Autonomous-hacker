@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Optional, List, Dict, Any, Set
 from pydantic import BaseModel, Field
 
+from .identity import AgentIdentity, AgentIdentityManager, get_identity_manager
+
 
 class AgentState(str, Enum):
     CREATED = "CREATED"
@@ -90,6 +92,16 @@ class AgentConfig(BaseModel):
     system_prompt: str = ""
     capabilities: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Identity reference - explicit, not derived from agent_id
+    identity_id: Optional[str] = None
+    
+    @property
+    def identity(self) -> Optional[AgentIdentity]:
+        """Get the agent's identity."""
+        if self.identity_id:
+            return get_identity_manager().get_identity(self.identity_id)
+        return None
 
 
 class Agent(BaseModel):

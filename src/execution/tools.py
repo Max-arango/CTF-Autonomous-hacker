@@ -1,5 +1,5 @@
 """Tool Registry and Definitions"""
-from .engine import ToolRegistry, ToolWrapper, ToolResult, CommandWrapper, ToolWrapperBase
+from .engine import ToolRegistry, ToolWrapper, ToolResult, PythonSandboxWrapper, ToolWrapperBase
 from .wrappers import (
     NmapWrapper,
     FfufWrapper,
@@ -35,7 +35,7 @@ __all__ = [
     "ToolRegistry",
     "ToolWrapper",
     "ToolResult",
-    "CommandWrapper",
+    "PythonSandboxWrapper",
     "ToolWrapperBase",
     "NmapWrapper",
     "FfufWrapper",

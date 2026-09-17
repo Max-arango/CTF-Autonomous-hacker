@@ -1,10 +1,11 @@
 """Challenge Manager"""
 import asyncio
+import ipaddress
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from ..orchestrator.models import Challenge
+from ..orchestrator.models import Challenge, ChallengeScope
 from ..artifacts import ArtifactManager, get_artifact_manager
 from ..config.settings import get_settings
 from ..observability import get_logger
@@ -31,6 +32,13 @@ class ChallengeManager:
                 with open(index_file, "r") as f:
                     data = json.load(f)
                     for item in data:
+                        # Load scope if present
+                        scope_data = item.get("scope", {})
+                        scope = ChallengeScope.from_dict(scope_data) if scope_data else ChallengeScope(
+                            challenge_id=item.get("id", "")
+                        )
+                        item["scope"] = scope
+                        
                         challenge = Challenge(**item)
                         self._index[challenge.id] = challenge
             except Exception:
@@ -42,7 +50,8 @@ class ChallengeManager:
         try:
             data = []
             for challenge in self._index.values():
-                data.append({
+                scope_dict = challenge.scope.to_dict()
+                challenge_dict = {
                     "id": challenge.id,
                     "name": challenge.name,
                     "description": challenge.description,
@@ -56,7 +65,10 @@ class ChallengeManager:
                     "metadata": challenge.metadata,
                     "created_at": challenge.created_at.isoformat(),
                     "updated_at": challenge.updated_at.isoformat(),
-                })
+                    "scope": scope_dict,
+                }
+                data.append(challenge_dict)
+            
             async with asyncio.Lock():
                 import aiofiles
                 async with aiofiles.open(index_file, "w") as f:
@@ -125,14 +137,9 @@ class ChallengeManager:
         await self.store(challenge)
         return challenge
 
-
-# Global challenge manager
-_challenge_manager: Optional[ChallengeManager] = None
-
-
-async def get_challenge_manager() -> ChallengeManager:
-    """Get global challenge manager."""
-    global _challenge_manager
-    if _challenge_manager is None:
-        _challenge_manager = ChallengeManager()
-    return _challenge_manager
+    def get_scope(self, challenge_id: str) -> Optional[ChallengeScope]:
+        """Get challenge scope."""
+        challenge = self._index.get(challenge_id)
+        if challenge:
+            return challenge.scope
+        return None

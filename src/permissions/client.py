@@ -55,29 +55,27 @@ class PermissionClient:
             return response.json()
         except Exception as e:
             return {
-                "success": False,
+                "approved": False,
                 "error": str(e),
                 "request_id": request.id,
             }
 
-    async def install_package(
+    async def read_audit_logs(
         self,
         agent_id: str,
-        package_name: str,
-        package_manager: str = "apt",
-        version: Optional[str] = None,
+        limit: int = 100,
+        filter: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Request package installation."""
+        """Request to read audit logs."""
         return await self.request(
             agent_id=agent_id,
-            capability="INSTALL_PACKAGE",
-            reason=f"Install {package_name} for agent execution",
+            capability="READ_AUDIT_LOGS",
+            reason="Read audit logs",
             parameters={
-                "package_name": package_name,
-                "package_manager": package_manager,
-                "version": version,
+                "limit": limit,
+                "filter": filter or {},
             },
-            risk="medium",
+            risk="low",
         )
 
     async def create_mount(

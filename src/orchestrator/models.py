@@ -38,6 +38,94 @@ class ChallengeType(str, Enum):
 
 
 @dataclass
+class AttackSurface:
+    """Identified attack surface."""
+    services: List[Dict[str, Any]] = field(default_factory=list)
+    web_endpoints: List[str] = field(default_factory=list)
+    open_ports: List[int] = field(default_factory=list)
+    technologies: List[str] = field(default_factory=list)
+    potential_vulnerabilities: List[str] = field(default_factory=list)
+    entry_points: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ChallengeScope:
+    """Formal ChallengeScope system."""
+    challenge_id: str
+    target_scope: List[str] = field(default_factory=list)  # Exact IPs or CIDRs
+    discovery_scope: List[str] = field(default_factory=list)  # Broader scanning range
+    lateral_movement_scope: List[str] = field(default_factory=list)  # Lateral movement
+    control_scope: List[str] = field(default_factory=list)  # Infrastructure
+    allow_subnet_expansion: bool = False  # Whether subnet expansion is permitted
+    
+    def is_target(self, ip: str) -> bool:
+        """Check if IP is within target scope."""
+        if not self.target_scope:
+            return True  # If no target scope defined, allow (legacy behavior)
+        
+        # Check exact matches first
+        if ip in self.target_scope:
+            return True
+        
+        # Check CIDR ranges
+        for cidr in self.target_scope:
+            try:
+                network = ipaddress.ip_network(cidr, strict=False)
+                address = ipaddress.ip_address(ip)
+                if address in network:
+                    return True
+            except ValueError:
+                continue
+        return False
+    
+    def is_discovery(self, ip: str) -> bool:
+        """Check if IP is within discovery scope."""
+        if not self.discovery_scope:
+            return False
+        if ip in self.discovery_scope:
+            return True
+        for cidr in self.discovery_scope:
+            try:
+                network = ipaddress.ip_network(cidr, strict=False)
+                address = ipaddress.ip_address(ip)
+                if address in network:
+                    return True
+            except ValueError:
+                continue
+        return False
+    
+    def check(self, ip: str, scope_type: str) -> bool:
+        """Check IP against the specified scope type."""
+        if scope_type == "target":
+            return self.is_target(ip)
+        elif scope_type == "discovery":
+            return self.is_discovery(ip)
+        elif scope_type == "lateral":
+            # Check lateral movement scope
+            for cidr in self.lateral_movement_scope:
+                try:
+                    network = ipaddress.ip_network(cidr, strict=False)
+                    address = ipaddress.ip_address(ip)
+                    if address in network:
+                        return True
+                except ValueError:
+                    continue
+            return ip in self.lateral_movement_scope
+        elif scope_type == "control":
+            # Check control scope
+            for cidr in self.control_scope:
+                try:
+                    network = ipaddress.ip_network(cidr, strict=False)
+                    address = ipaddress.ip_address(ip)
+                    if address in network:
+                        return True
+                except ValueError:
+                    continue
+            return ip in self.control_scope
+        return False
+
+
+@dataclass
 class Challenge:
     """CTF Challenge."""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -53,6 +141,7 @@ class Challenge:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
+    scope: ChallengeScope = field(default_factory=ChallengeScope)
 
 
 @dataclass
@@ -63,18 +152,7 @@ class ChallengeClassification:
     confidence: float
     reasoning: str
     suggested_agents: List[str]
-    attack_surface: "AttackSurface"
-
-
-@dataclass
-class AttackSurface:
-    """Identified attack surface."""
-    services: List[Dict[str, Any]] = field(default_factory=list)
-    web_endpoints: List[str] = field(default_factory=list)
-    open_ports: List[int] = field(default_factory=list)
-    technologies: List[str] = field(default_factory=list)
-    potential_vulnerabilities: List[str] = field(default_factory=list)
-    entry_points: List[str] = field(default_factory=list)
+    attack_surface: AttackSurface
 
 
 @dataclass

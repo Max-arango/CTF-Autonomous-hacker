@@ -7,12 +7,6 @@ from typing import Any, Dict, List, Optional
 
 
 class Capability(str, Enum):
-    INSTALL_PACKAGE = "INSTALL_PACKAGE"
-    CREATE_RESTRICTED_MOUNT = "CREATE_RESTRICTED_MOUNT"
-    CONFIGURE_ISOLATED_NETWORK = "CONFIGURE_ISOLATED_NETWORK"
-    SET_REQUIRED_DEVICE_PERMISSION = "SET_REQUIRED_DEVICE_PERMISSION"
-    PERFORM_CONTROLLED_PRIVILEGED_OPERATION = "PERFORM_CONTROLLED_PRIVILEGED_OPERATION"
-    MANAGE_CONTAINER_LIFECYCLE = "MANAGE_CONTAINER_LIFECYCLE"
     READ_AUDIT_LOGS = "READ_AUDIT_LOGS"
 
 
@@ -28,7 +22,7 @@ class PermissionRequest:
     """Request for privileged operation."""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     agent_id: str = ""
-    capability: Capability = Capability.INSTALL_PACKAGE
+    capability: Capability = Capability.READ_AUDIT_LOGS
     reason: str = ""
     parameters: Dict[str, Any] = field(default_factory=dict)
     scope: str = ""

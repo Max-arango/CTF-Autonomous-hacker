@@ -22,7 +22,7 @@ class RedisSettings(BaseSettings):
 
 
 class LLMSettings(BaseSettings):
-    provider: str = "nemotron"
+    provider: str = "ollama"
 
     # Nemotron
     nemotron_api_key: Optional[str] = None

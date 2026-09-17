@@ -36,7 +36,7 @@ async def log_command_execution(
         "agent_id": agent_id,
         "tool": tool,
         "arguments": arguments,
-        "success": getattr(result, "success", False),
+        "execution_succeeded": getattr(result, "success", False),
         "exit_code": getattr(result, "exit_code", None),
         "execution_time": getattr(result, "execution_time", None),
         "timestamp": datetime.utcnow().isoformat(),

@@ -4,6 +4,10 @@ from .base import LLMProvider, LLMConfig
 from .nemotron import NemotronProvider
 from .ollama import OllamaProvider
 from .openai import OpenAIProvider
+from .openrouter import OpenRouterProvider
+from .nim import NIMProvider
+from .anthropic import AnthropicProvider
+from .custom import CustomOpenAIProvider
 from ..config.settings import get_settings
 
 
@@ -14,6 +18,10 @@ class LLMProviderFactory:
         "nemotron": NemotronProvider,
         "ollama": OllamaProvider,
         "openai": OpenAIProvider,
+        "openrouter": OpenRouterProvider,
+        "nim": NIMProvider,
+        "anthropic": AnthropicProvider,
+        "custom": CustomOpenAIProvider,
         "vllm": OpenAIProvider,  # vLLM is OpenAI-compatible
     }
 
@@ -52,8 +60,19 @@ async def get_llm_provider(
         provider_name = settings.llm.provider
 
     if config is None:
+        # Map provider to default model
+        model_map = {
+            "nemotron": settings.llm.nemotron_model,
+            "ollama": settings.llm.ollama_model,
+            "openai": settings.llm.openai_model,
+            "openrouter": settings.llm.openrouter_model,
+            "nim": settings.llm.nim_model,
+            "anthropic": settings.llm.anthropic_model,
+            "custom": settings.llm.custom_model,
+            "vllm": settings.llm.vllm_model,
+        }
         config = LLMConfig(
-            model=settings.llm.nemotron_model if provider_name == "nemotron" else settings.llm.openai_model,
+            model=model_map.get(provider_name, settings.llm.openai_model),
             max_tokens=settings.llm.max_tokens,
             temperature=settings.llm.temperature,
             top_p=settings.llm.top_p,

@@ -3,10 +3,11 @@ from typing import Optional, List, Dict, Any
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+from functools import lru_cache
 
 
 class DatabaseSettings(BaseSettings):
-    url: str = "postgresql+asyncpg://ctf:ctf@db:5432/ctf"
+    url: str = "sqlite:///ctf.db"
     pool_size: int = 10
     max_overflow: int = 20
     pool_timeout: int = 30
@@ -24,19 +25,45 @@ class RedisSettings(BaseSettings):
 class LLMSettings(BaseSettings):
     provider: str = "ollama"
 
-    # Nemotron
+    # Nemotron (NVIDIA)
     nemotron_api_key: Optional[str] = None
     nemotron_base_url: str = "https://integrate.api.nvidia.com/v1"
     nemotron_model: str = "nemotron-3-5-lightning-free"
 
-    # Ollama
+    # Ollama (Local)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "nemotron-3-5-lightning-free"
+
+    # OpenRouter
+    openrouter_api_key: Optional[str] = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "anthropic/claude-3.5-sonnet"
+    openrouter_referer: str = "https://github.com/Max-arango/CTF-Autonomous-hacker"
+    openrouter_title: str = "CTF Autonomous Hacker"
+
+    # NVIDIA NIM
+    nim_api_key: Optional[str] = None
+    nim_base_url: str = "https://integrate.api.nvidia.com/v1"
+    nim_model: str = "meta/llama-3.1-405b-instruct"
+
+    # Anthropic
+    anthropic_api_key: Optional[str] = None
+    anthropic_base_url: str = "https://api.anthropic.com/v1"
+    anthropic_model: str = "claude-3-5-sonnet-20241022"
 
     # OpenAI
     openai_api_key: Optional[str] = None
     openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4-turbo-preview"
+    openai_model: str = "gpt-4o"
+
+    # Custom OpenAI-compatible (vLLM, LocalAI, TGI, etc.)
+    custom_api_key: Optional[str] = None
+    custom_base_url: str = "http://localhost:8000/v1"
+    custom_model: str = "meta-llama/Meta-Llama-3.1-405B-Instruct"
+
+    # vLLM
+    vllm_base_url: str = "http://localhost:8000/v1"
+    vllm_model: str = "meta-llama/Meta-Llama-3.1-405B-Instruct"
 
     # Defaults
     max_tokens: int = 8192
@@ -134,7 +161,7 @@ class Settings(BaseSettings):
 
     # System
     system_name: str = "autonomous-ctf-environment"
-    system_version: str = "0.1.0"
+    system_version: str = "0.2.0"
     mode: str = "JEOPARDY"
     debug: bool = False
     log_level: str = "INFO"

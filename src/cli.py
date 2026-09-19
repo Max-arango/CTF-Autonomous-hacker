@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Optional, List
 import typer
 
-from ..core.orchestrator import Orchestrator
-from ..core.db import init_db
-from ..core.models import ChallengeCategory, ChallengeType, AgentRole
-from ..web.automation import CTFAutonomousAgent, CTFCredentials, PLATFORMS
+from src.core.orchestrator import Orchestrator
+from src.core.db import init_db
+from src.core.models import ChallengeCategory, ChallengeType, AgentRole
+from src.web.automation import CTFAutonomousAgent, CTFCredentials, PLATFORMS
 
 
 app = typer.Typer(
@@ -40,13 +40,11 @@ def main(
 
 # --- Challenge Commands ---
 
-@app.command("challenge")
-def challenge_cmd():
-    """Challenge management"""
-    pass
+challenge_app = typer.Typer(help="Challenge management")
+app.add_typer(challenge_app, name="challenge")
 
 
-@challenge_cmd.command("add")
+@challenge_app.command("add")
 def challenge_add(
     name: str = typer.Argument(..., help="Challenge name"),
     description: str = typer.Option("", "--desc", "-d", help="Challenge description"),
@@ -110,7 +108,7 @@ def challenge_add(
         typer.echo(f"  Targets: {', '.join(target)}")
 
 
-@challenge_cmd.command("list")
+@challenge_app.command("list")
 def challenge_list(
     db: str = typer.Option("ctf.db", "--db", help="Database path"),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
@@ -133,7 +131,7 @@ def challenge_list(
             typer.echo(f"  {c.id[:8]}  {c.name:30}  [{cats}]  ({c.challenge_type.value})")
 
 
-@challenge_cmd.command("inspect")
+@challenge_app.command("inspect")
 def challenge_inspect(
     challenge_id: str = typer.Argument(..., help="Challenge ID"),
     db: str = typer.Option("ctf.db", "--db", help="Database path"),
@@ -170,7 +168,7 @@ def challenge_inspect(
         typer.echo(f"Discovery Scope: {challenge.discovery_scope}")
 
 
-@challenge_cmd.command("delete")
+@challenge_app.command("delete")
 def challenge_delete(
     challenge_id: str = typer.Argument(..., help="Challenge ID"),
     db: str = typer.Option("ctf.db", "--db", help="Database path"),
@@ -481,13 +479,11 @@ def logs(
 
 # --- Web Autonomous Agent Commands ---
 
-@app.command("web")
-def web_cmd():
-    """Web autonomous CTF agent commands"""
-    pass
+web_app = typer.Typer(help="Web autonomous CTF agent commands")
+app.add_typer(web_app, name="web")
 
 
-@web_cmd.command("login")
+@web_app.command("login")
 def web_login(
     platform: str = typer.Argument(..., help="Platform: ctfd|rctf|ctfhub"),
     url: str = typer.Argument(..., help="Base URL of CTF platform"),
@@ -529,7 +525,7 @@ def web_login(
     asyncio.run(_login())
 
 
-@web_cmd.command("discover")
+@web_app.command("discover")
 def web_discover(
     platform: str = typer.Argument(..., help="Platform: ctfd|rctf|ctfhub"),
     url: str = typer.Argument(..., help="Base URL of CTF platform"),
@@ -583,7 +579,7 @@ def web_discover(
     asyncio.run(_discover())
 
 
-@web_cmd.command("autonomous")
+@web_app.command("autonomous")
 def web_autonomous(
     platform: str = typer.Argument(..., help="Platform: ctfd|rctf|ctfhub"),
     url: str = typer.Argument(..., help="Base URL of CTF platform"),

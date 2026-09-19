@@ -1,6 +1,6 @@
 [project]
 name = "autonomous-ctf-environment"
-version = "0.1.0"
+version = "0.2.0"
 description = "Autonomous multi-agent CTF solving environment"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -64,9 +64,9 @@ target-version = "py312"
 line-length = 100
 select = ["E", "F", "I", "UP", "W", "C4", "C90", "PTH", "FLY", "T20", "TID", "ARG", "RUF", "SIM", "RET", "B", "ERA", "PD", "PGH", "PL"]
 ignore = ["S101", "B008", "PLW0603"]
-per-file-ignores = {
-    "tests/*": ["S101", "S106", "S311"],
-}
+
+[tool.ruff.per-file-ignores]
+"tests/*" = ["S101", "S106", "S311"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -96,7 +96,5 @@ addopts = "-v --tb=short"
 where = ["src"]
 include = ["*"]
 
-[tool.setuptools.entry-points]
-console_scripts = [
-    "ctf = src.cli:app",
-]
+[project.entry-points]
+console_scripts = { ctf = "src.cli:app" }

@@ -143,3 +143,15 @@ class ChallengeManager:
         if challenge:
             return challenge.scope
         return None
+
+
+# Global challenge manager
+_challenge_manager: Optional[ChallengeManager] = None
+
+
+async def get_challenge_manager() -> ChallengeManager:
+    """Get global challenge manager."""
+    global _challenge_manager
+    if _challenge_manager is None:
+        _challenge_manager = ChallengeManager()
+    return _challenge_manager

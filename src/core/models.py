@@ -132,7 +132,7 @@ class Challenge(Base):
     target_info = Column(JSON, default=dict)
     credentials = Column(JSON, default=dict)
     constraints = Column(JSON, default=list)
-    metadata = Column(JSON, default=dict)
+    challenge_metadata = Column(JSON, default=dict)
     
     # Scope fields
     target_scope = Column(JSON, default=list)
@@ -229,7 +229,7 @@ class Finding(Base):
     supporting_artifacts = Column(JSON, default=list)  # artifact IDs
     supporting_commands = Column(JSON, default=list)   # tool_execution IDs
     verification_criteria = Column(JSON, default=dict)
-    metadata = Column(JSON, default=dict)
+    finding_metadata = Column(JSON, default=dict)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -320,7 +320,7 @@ class ToolExecution(Base):
     execution_time = Column(Float, default=0.0)
     
     artifacts_created = Column(JSON, default=list)
-    metadata = Column(JSON, default=dict)
+    tool_execution_metadata = Column(JSON, default=dict)
     error = Column(Text, nullable=True)
     
     executed_at = Column(DateTime, default=datetime.utcnow, index=True)
@@ -396,7 +396,7 @@ class Artifact(Base):
     creator = Column(String(36))
     source = Column(String(100))
     tags = Column(JSON, default=list)
-    metadata = Column(JSON, default=dict)
+    artifact_metadata = Column(JSON, default=dict)
     
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     
@@ -459,7 +459,7 @@ class AgentIdentity(Base):
     issued_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
     
-    metadata = Column(JSON, default=dict)
+    identity_metadata = Column(JSON, default=dict)
     
     __table_args__ = (Index("ix_identity_challenge_role", "challenge_id", "role"),)
 

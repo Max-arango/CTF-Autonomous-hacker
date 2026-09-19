@@ -6,6 +6,7 @@ from .events import (
     log_evidence_verification,
     log_artifact_event,
     log_permission_event,
+    log_audit,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "log_evidence_verification",
     "log_artifact_event",
     "log_permission_event",
+    "log_audit",
 ]

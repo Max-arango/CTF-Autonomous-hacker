@@ -33,7 +33,7 @@ from ..network.authorization import create_network_authorizer
 from ..observability import get_logger, log_audit
 
 
-class OrchestratorState(PyEnum):
+class OrchestratorState(Enum):
     INTAKE = "intake"
     TRIAGE = "triage"
     SCOPE = "scope"

@@ -1,7 +1,7 @@
 """Permissions System"""
 from .client import PermissionClient, get_permission_client
 from .models import PermissionRequest, PermissionResponse, Capability
-from .manager import PermissionManager
+from .manager import SecurePermissionManager as PermissionManager
 
 __all__ = [
     "PermissionClient",

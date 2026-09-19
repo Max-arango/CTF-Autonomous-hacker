@@ -1,4 +1,8 @@
-"""Tool Wrappers Module"""
-# This module is imported by execution.tools
-# Actual wrappers are defined in execution/tools.py
-pass
+"""Tool Wrappers Module - Exports wrapper classes from engine"""
+from .engine import CommandWrapper, ToolWrapperBase, PythonSandboxWrapper
+
+__all__ = [
+    "CommandWrapper",
+    "ToolWrapperBase",
+    "PythonSandboxWrapper",
+]

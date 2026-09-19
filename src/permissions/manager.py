@@ -252,6 +252,8 @@ class SecurePermissionManager:
                 result = await self._secure_agent_spawn(params)
             else:
                 result = {"error": f"Operation not implemented: {capability.value}"}
+        except Exception as e:
+            result = {"error": f"Execution failed: {str(e)}"}
         
         await log_permission_event(
             request_id=request.id,

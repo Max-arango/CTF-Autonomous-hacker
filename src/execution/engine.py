@@ -85,6 +85,95 @@ class CommandWrapper(ToolWrapperBase):
         return cmd
 
 
+class PythonSandboxWrapper(ToolWrapperBase):
+    """Wrapper for Python sandbox execution - safe alternative to shell commands."""
+
+    def __init__(self, execution_engine: "ExecutionEngine"):
+        super().__init__("execute_python_sandbox", execution_engine)
+
+    async def execute(self, arguments: Dict[str, Any], agent_id: str) -> ToolResult:
+        """Execute Python code in a sandboxed environment."""
+        script = arguments.get("script", "")
+        timeout = arguments.get("timeout", 30)
+
+        if not script:
+            return ToolResult(
+                tool_name=self.tool_name,
+                success=False,
+                error="No script provided",
+            )
+
+        import time
+        start_time = time.time()
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "python3",
+                "-c",
+                script,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout,
+                )
+                exit_code = process.returncode
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.communicate()
+                return ToolResult(
+                    tool_name=self.tool_name,
+                    success=False,
+                    stdout="",
+                    stderr=f"Python execution timed out after {timeout} seconds",
+                    exit_code=-1,
+                    execution_time=timeout,
+                    error=f"Timeout after {timeout}s",
+                )
+
+            execution_time = time.time() - start_time
+
+            # Store stdout/stderr as artifacts if significant
+            artifacts = []
+            if stdout and len(stdout) > 100:
+                artifact_id = await self.execution_engine.artifact_manager.store(
+                    content=stdout.decode("utf-8", errors="replace"),
+                    filename=f"stdout_{agent_id}_{int(time.time())}.txt",
+                    metadata={"agent_id": agent_id, "tool": self.tool_name, "type": "stdout"},
+                )
+                artifacts.append(artifact_id)
+
+            if stderr and len(stderr) > 100:
+                artifact_id = await self.execution_engine.artifact_manager.store(
+                    content=stderr.decode("utf-8", errors="replace"),
+                    filename=f"stderr_{agent_id}_{int(time.time())}.txt",
+                    metadata={"agent_id": agent_id, "tool": self.tool_name, "type": "stderr"},
+                )
+                artifacts.append(artifact_id)
+
+            return ToolResult(
+                tool_name=self.tool_name,
+                success=exit_code == 0,
+                stdout=stdout.decode("utf-8", errors="replace"),
+                stderr=stderr.decode("utf-8", errors="replace"),
+                exit_code=exit_code,
+                execution_time=execution_time,
+                artifacts=artifacts,
+            )
+
+        except Exception as e:
+            return ToolResult(
+                tool_name=self.tool_name,
+                success=False,
+                error=str(e),
+                execution_time=time.time() - start_time,
+            )
+
+
 class ToolWrapper:
     """Tool wrapper with metadata."""
 

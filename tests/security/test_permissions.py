@@ -1,6 +1,6 @@
 """Security tests for permission system"""
 import pytest
-from src.permissions.manager import PermissionManager
+from src.permissions import PermissionManager
 from src.permissions.models import PermissionRequest, Capability, PermissionStatus
 from src.permissions.client import PermissionClient
 
